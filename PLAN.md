@@ -30,6 +30,12 @@ Die Android-App startet einen kleinen Webserver im WLAN, zeigt dessen Adresse al
 | Client-Seite | ein HTML-Dokument mit TypeScript, gebaut mit Vite, als Asset in die App gepackt | klein, kein Framework nötig. |
 | Build | GitHub Actions wie bei hinterhof-abenteuer: Debug-APK bei PRs, signiertes APK als Release auf `main` | im Container gibt es kein Android-SDK. |
 
+## Eckdaten
+
+- Bis zu **20 Mitspielende** gleichzeitig (mehr soll nicht abstürzen, wird aber nicht gezielt getestet).
+- Name **Party Buttons**, Paketname `de.aikitori.partybuttons`.
+- Zwei Rundenarten, der Host wählt vor jeder Runde: **Buzzer** oder **Antworten** (siehe unten).
+
 ## Ablauf eines Spiels
 
 1. Host öffnet die App, tippt „Neues Spiel“. Die App startet den Server und einen Vordergrund-Dienst, damit er
@@ -42,6 +48,18 @@ Die Android-App startet einen kleinen Webserver im WLAN, zeigt dessen Adresse al
 5. Nach dem ersten Druck sind alle Buzzer gesperrt (einstellbar). Der Host gibt mit „Freigeben“ die nächste
    Runde frei.
 
+## Rundenart „Antworten“
+
+- Der Host stellt die Anzahl der Knöpfe ein: **2 bis 8**, beschriftet A, B, C, … (Standard 4). Die Einstellung
+  bleibt für die nächsten Runden, bis er sie ändert.
+- Mitspielende sehen die Knöpfe als Raster, groß genug für den Daumen, und tippen genau eine Antwort. Danach ist
+  ihre Wahl fest und hervorgehoben (kein Umentscheiden, damit die Zeit zählt).
+- Der Host sieht während der Runde nur, **wer schon geantwortet hat** (z. B. „7/9“), nicht was. So kann
+  niemand auf dem Host-Bildschirm spicken.
+- „Auflösen“: Der Host tippt die richtige Antwort an. Dann sehen alle, wer richtig lag, die Schnellsten zuerst,
+  mit Zeit. Auf den Handys erscheint grün „richtig“ oder rot „falsch“.
+- Alternativ „Ohne richtige Antwort auflösen“ (für Umfragen): zeigt nur die Verteilung.
+
 ## Fairness
 
 Die Reihenfolge bestimmt der Zeitpunkt, an dem der Host die Nachricht empfängt, abzüglich der gemessenen
@@ -51,8 +69,10 @@ zwei Drücke weniger als ca. 20 ms Abstand, zeigt der Host „gleichzeitig“ st
 
 ## Protokoll (WebSocket, JSON)
 
-Client → Host: `join {token, name}`, `press {seq}`, `pong {t}`
-Host → Client: `welcome {id, name, color, state}`, `state {locked, myRank}`, `ping {t}`, `kicked`, `replaced`
+Client → Host: `join {token, name}`, `press {seq}`, `answer {option, seq}`, `pong {t}`
+Host → Client: `welcome {id, name, color, state}`, `state {mode, options, locked, myRank, myAnswer, result}`, `ping {t}`, `kicked`, `replaced`
+
+`mode` ist `buzzer` oder `choice`, `options` die Anzahl der Knöpfe, `result` nach dem Auflösen richtig/falsch und Platz.
 
 ## Wiederverbinden: gleicher Spieler nach Abbruch
 
@@ -97,11 +117,12 @@ Browser geschlossen), muss beim Wiederkommen derselbe Spieler sein, mit Name, Fa
 | M0 | Gradle-Projekt (`app`, `core`), Vite-Client, CI baut Debug-APK, Gerüst für Deutsch/Englisch in App und Client | leere App lässt sich installieren |
 | M1 | Ktor-Server in der App, liefert Client-Seite, WebSocket-Verbindung, Spielerliste beim Host, Spieler-Token und Wiederverbinden | Mitspielende tauchen beim Host auf und bleiben nach Abbruch dieselben |
 | M2 | Buzzer-Logik in `core` mit Tests: Sperren, Reihenfolge, Freigeben | erstes spielbares Quiz |
+| M2b | Rundenart „Antworten“: Anzahl 2–8 beim Host, Antworten verdeckt, Auflösen mit richtiger Antwort, Tests in `core` | Quiz mit A/B/C/D |
 | M3 | QR-Code, IP-Ermittlung (WLAN und Hotspot), Vordergrund-Dienst, WifiLock | Alltagstauglich |
 | M4 | Laufzeitausgleich, Töne beim Host, Vibration beim Client, „Übernehmen“ beim Host | fair und rund |
 | M5 | Release-Signierung, App-Icon, Hinweise bei Problemen (siehe unten) | APK zum Weitergeben |
 
-Spätere Ideen: Teams mit gemeinsamer Farbe, Antwort-Knöpfe A/B/C/D, Punktestand, mehrere Knöpfe pro Gerät,
+Spätere Ideen: Teams mit gemeinsamer Farbe, Punktestand, eigene Beschriftung der Antwort-Knöpfe, mehrere Knöpfe pro Gerät,
 Sperre für Spieler, die zu früh drücken.
 
 ## Bekannte Stolpersteine
@@ -113,9 +134,3 @@ Sperre für Spieler, die zu früh drücken.
 - **Akku-Optimierung:** Ohne Vordergrund-Dienst beendet Android den Server nach kurzer Zeit.
 - **Nur HTTP:** Im lokalen Netz gibt es kein HTTPS. Vibration geht trotzdem, Bildschirm-wach-halten
   (Wake Lock API) im Browser nicht. Reicht für einen Buzzer.
-
-## Offene Fragen
-
-- Wie viele Mitspielende sollen mindestens gehen (Annahme: 20)?
-- Erste Version nur ein Buzzer pro Person, oder gleich Antwort-Knöpfe A/B/C/D?
-- Name „Party Buttons“ und Paketname `de.aikitori.partybuttons` in Ordnung?
