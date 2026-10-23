@@ -19,6 +19,7 @@ data class PlayerView(
     val color: String,
     val connected: Boolean,
     val latencyMs: Long? = null,
+    val score: Int = 0,
 )
 
 /**
@@ -83,6 +84,8 @@ class Game(val roomCode: String) {
     private class Player(val id: Int, var token: String, val name: String, val color: String) {
         var connection: ConnectionId? = null
 
+        var score = 0
+
         /** Gleitender Mittelwert der Laufzeit (hin und zurück), null bis zur ersten Messung. */
         var rttMs: Double? = null
 
@@ -119,7 +122,7 @@ class Game(val roomCode: String) {
     fun players(): List<PlayerView> =
         players.values.map {
             val connected = it.connection != null
-            PlayerView(it.id, it.name, it.color, connected, if (connected) it.rttMs?.toLong() else null)
+            PlayerView(it.id, it.name, it.color, connected, if (connected) it.rttMs?.toLong() else null, it.score)
         }
 
     fun round(): RoundView {
@@ -208,11 +211,26 @@ class Game(val roomCode: String) {
         answers.replaceAll { if (it.player === new && answers.none { a -> a.player === old }) Answer(old, it.option, it.atMs) else it }
         answers.removeAll { it.player === new }
 
+        // Punkte, die der Neue schon gesammelt hat, gehen nicht verloren
+        old.score += new.score
         val conn = new.connection ?: return broadcastState()
         old.connection = conn
         old.rttMs = new.rttMs
         byConnection[conn] = old
         return listOf(Effect.Send(conn, ServerMessage.Welcome(old.id, old.name, old.color))) + broadcastState()
+    }
+
+    /** Host ändert den Punktestand eines Spielers um [delta] (Buzzer: +1 für den, der richtig lag; Korrekturen). */
+    fun addScore(playerId: Int, delta: Int): List<Effect> {
+        val player = players.values.firstOrNull { it.id == playerId } ?: return emptyList()
+        player.score += delta
+        return player.connection?.let { listOf(Effect.Send(it, stateFor(player))) } ?: emptyList()
+    }
+
+    /** Alle Punkte auf 0, z. B. für ein neues Spiel mit denselben Leuten. */
+    fun resetScores(): List<Effect> {
+        players.values.forEach { it.score = 0 }
+        return broadcastState()
     }
 
     /** Verbindung ist weg. Der Spieler bleibt, nur als getrennt. */
@@ -281,6 +299,10 @@ class Game(val roomCode: String) {
         if (correctOption != null && correctOption !in 0 until options) return emptyList()
         correct = correctOption
         phase = Phase.LOCKED
+        // ein Punkt für jede richtige Antwort; der Host kann danach von Hand korrigieren
+        if (correctOption != null) {
+            answers.filter { it.option == correctOption }.forEach { it.player.score += Rules.POINTS_PER_CORRECT_ANSWER }
+        }
         return broadcastState()
     }
 
@@ -320,7 +342,7 @@ class Game(val roomCode: String) {
     private fun stateFor(player: Player): ServerMessage.State {
         if (mode == Mode.BUZZER) {
             val rank = presses.indexOfFirst { it.player === player }.takeIf { it >= 0 }?.plus(1)
-            return ServerMessage.State(round, phase, rank)
+            return ServerMessage.State(round, phase, rank, score = player.score)
         }
         val mine = answers.firstOrNull { it.player === player }
         val revealed = phase == Phase.LOCKED
@@ -337,6 +359,7 @@ class Game(val roomCode: String) {
             myAnswer = mine?.option,
             correct = if (revealed) correct else null,
             counts = if (revealed) round().counts else null,
+            score = player.score,
         )
     }
 

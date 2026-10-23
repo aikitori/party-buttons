@@ -109,6 +109,10 @@ object HostSession {
 
     fun mergePlayers(oldId: Int, newId: Int) = withRoom { it.mergePlayers(oldId, newId) }
 
+    fun addScore(playerId: Int, delta: Int) = withRoom { it.addScore(playerId, delta) }
+
+    fun resetScores() = withRoom { it.resetScores() }
+
     private fun withRoom(action: suspend (PartyRoom) -> Unit) {
         val running = server ?: return
         scope.launch { action(running.room) }

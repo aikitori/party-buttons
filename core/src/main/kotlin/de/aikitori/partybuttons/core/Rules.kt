@@ -27,6 +27,9 @@ object Rules {
     /** Liegen die zwei schnellsten Drücke näher beieinander, zeigt der Host „gleichzeitig“. */
     const val TIE_MS = 20L
 
+    /** So viele Punkte gibt es beim Auflösen für eine richtige Antwort. */
+    const val POINTS_PER_CORRECT_ANSWER = 1
+
     /** Fester Port des Webservers, damit der Browserspeicher der Mitspielenden gleich bleibt. */
     const val DEFAULT_PORT = 8080
 

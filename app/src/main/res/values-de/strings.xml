@@ -56,4 +56,11 @@
     <string name="help_text">• Alle müssen im selben WLAN sein wie dieses Handy.\n• Gäste-WLANs lassen Geräte oft nicht miteinander reden. Dann hier den Hotspot einschalten und die anderen damit verbinden.\n• Manche Handys nehmen bei einem WLAN ohne Internet lieber mobile Daten. Dann dort die mobilen Daten ausschalten.\n• Ohne QR-Code: die angezeigte Adresse im Browser eintippen. Die Zahlen vor /j/ reichen, den Spielcode kann man dann eingeben.\n• Die App darf im Hintergrund laufen; „Spiel beenden“ in der Benachrichtigung beendet es für alle.</string>
     <string name="ok">OK</string>
     <string name="press_times">%1$s · nach %2$.2f s</string>
+    <string name="score_points">%1$d P.</string>
+    <string name="add_point">+1</string>
+    <string name="remove_point">−1</string>
+    <string name="player_menu">Mehr für %1$s</string>
+    <string name="reset_scores">Punkte zurücksetzen</string>
+    <string name="reset_scores_question">Punkte aller Mitspielenden auf 0 setzen?</string>
+    <string name="reset">Zurücksetzen</string>
 </resources>

@@ -23,7 +23,7 @@ const HINT_AFTER_MS = 10_000;
 // Runde, wie der Host sie zuletzt gemeldet hat; pressedRound und pending merken den eigenen Druck bzw. die
 // eigene Antwort, bis der Host sie bestätigt
 let round: RoundState = {
-  round: 0, phase: "idle", myRank: null, mode: "buzzer", options: 0, myAnswer: null, correct: null, counts: null,
+  round: 0, phase: "idle", myRank: null, mode: "buzzer", options: 0, myAnswer: null, correct: null, counts: null, score: 0,
 };
 let pressedRound = -1;
 let pending: { round: number; option: number } | null = null;
@@ -65,6 +65,7 @@ function render(): void {
 }
 
 function renderRound(): void {
+  $("score").textContent = round.score === 1 ? t("scoreOne") : t("scoreMany", { n: round.score });
   const choice = round.mode === "choice";
   $("buzzer").hidden = choice;
   $("choices").hidden = !choice;

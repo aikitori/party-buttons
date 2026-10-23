@@ -60,6 +60,8 @@ sealed interface ServerMessage {
         val myAnswer: Int? = null,
         val correct: Int? = null,
         val counts: List<Int>? = null,
+        /** Punktestand dieses Spielers. */
+        val score: Int = 0,
     ) : ServerMessage
 
     /** Laufzeitmessung: Der Browser schickt [t] als [ClientMessage.Pong] zurück. */

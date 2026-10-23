@@ -32,5 +32,7 @@
   "wrongAnswer": "Leider falsch. Richtig war {x}.",
   "noAnswer": "Keine Antwort. Richtig war {x}.",
   "pollOver": "Abstimmung beendet.",
-  "reconnectHint": "Klappt es nicht? Prüfe, ob du im selben WLAN wie der Host bist, und schalte mobile Daten aus."
+  "reconnectHint": "Klappt es nicht? Prüfe, ob du im selben WLAN wie der Host bist, und schalte mobile Daten aus.",
+  "scoreOne": "1 Punkt",
+  "scoreMany": "{n} Punkte"
 }

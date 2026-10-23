@@ -262,6 +262,14 @@ h1.player::before {
   color: #fff;
 }
 
+.score {
+  margin: -16px 0 0;
+  padding: 4px 14px;
+  border-radius: 999px;
+  background: var(--chip);
+  font-weight: 700;
+}
+
 .round-status {
   min-height: 1.5em;
   font-size: 1.25rem;

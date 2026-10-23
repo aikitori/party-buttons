@@ -19,6 +19,7 @@ export interface RoundState {
   myAnswer: number | null;
   correct: number | null;
   counts: number[] | null;
+  score: number;
 }
 
 export type NameProblem = "empty" | "tooLong" | "taken";

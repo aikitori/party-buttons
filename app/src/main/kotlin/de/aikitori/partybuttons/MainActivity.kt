@@ -53,6 +53,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
@@ -199,15 +201,28 @@ private fun ColumnScope.RunningGame(state: HostState.Running) {
         if (state.players.isEmpty()) {
             item { Text(stringResource(R.string.no_players), color = MaterialTheme.colorScheme.onSurfaceVariant) }
         }
-        items(state.players, key = { it.id }) { player -> PlayerRow(player, state.players) }
+        // Rangliste: meiste Punkte oben, bei Gleichstand in der Reihenfolge des Beitretens
+        items(state.players.sortedByDescending { it.score }, key = { it.id }) { player -> PlayerRow(player, state.players) }
     }
 
     // unten: Steuerung
     Controls(state)
     var help by remember { mutableStateOf(false) }
+    var resetting by remember { mutableStateOf(false) }
     Row {
         TextButton(onClick = { help = true }, Modifier.weight(1f)) { Text(stringResource(R.string.help_button)) }
+        TextButton(onClick = { resetting = true }, Modifier.weight(1f)) { Text(stringResource(R.string.reset_scores)) }
         TextButton(onClick = { HostSession.stop(context) }, Modifier.weight(1f)) { Text(stringResource(R.string.stop_game)) }
+    }
+    if (resetting) {
+        AlertDialog(
+            onDismissRequest = { resetting = false },
+            text = { Text(stringResource(R.string.reset_scores_question)) },
+            confirmButton = {
+                TextButton(onClick = { HostSession.resetScores(); resetting = false }) { Text(stringResource(R.string.reset)) }
+            },
+            dismissButton = { TextButton(onClick = { resetting = false }) { Text(stringResource(R.string.cancel)) } },
+        )
     }
     if (help) {
         AlertDialog(
@@ -318,10 +333,12 @@ private fun BuzzerResult(round: RoundView, wallClockOffsetMs: Long) {
         // Platz 1 groß, in der Farbe des Spielers
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             Box(Modifier.size(40.dp).background(parseColor(first.color), CircleShape))
-            Column {
+            Column(Modifier.weight(1f)) {
                 Text(first.name, fontSize = 40.sp, fontWeight = FontWeight.Bold)
                 PressTimes(first.atMs + wallClockOffsetMs, first.sinceOpenMs)
             }
+            // der Host entscheidet, ob die Antwort stimmte
+            FilledTonalButton(onClick = { HostSession.addScore(first.playerId, 1) }) { Text(stringResource(R.string.add_point)) }
         }
         if (round.tie) {
             Text(stringResource(R.string.tie), color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold, fontSize = 22.sp)
@@ -339,6 +356,7 @@ private fun BuzzerResult(round: RoundView, wallClockOffsetMs: Long) {
                     fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Bold,
                 )
+                TextButton(onClick = { HostSession.addScore(press.playerId, 1) }) { Text(stringResource(R.string.add_point)) }
             }
         }
     } else if (round.phase == Phase.LOCKED) {
@@ -448,10 +466,25 @@ private fun PlayerRow(player: PlayerView, everyone: List<PlayerView>) {
             val latency = player.latencyMs?.let { " · " + stringResource(R.string.latency, it) } ?: ""
             Text(status + latency, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        if (!player.connected) {
-            TextButton(onClick = { merging = true }) { Text(stringResource(R.string.merge_player)) }
+        Text(stringResource(R.string.score_points, player.score), fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+        IconTextButton("−", stringResource(R.string.remove_point), enabled = true) { HostSession.addScore(player.id, -1) }
+        IconTextButton("+", stringResource(R.string.add_point), enabled = true) { HostSession.addScore(player.id, 1) }
+        var menu by remember { mutableStateOf(false) }
+        Box {
+            IconTextButton("⋮", stringResource(R.string.player_menu, player.name), enabled = true) { menu = true }
+            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                if (!player.connected) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.merge_player)) },
+                        onClick = { menu = false; merging = true },
+                    )
+                }
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.remove_player)) },
+                    onClick = { menu = false; HostSession.removePlayer(player.id) },
+                )
+            }
         }
-        TextButton(onClick = { HostSession.removePlayer(player.id) }) { Text(stringResource(R.string.remove_player)) }
     }
     if (merging) {
         // nur Verbundene kommen in Frage: das sind die, die sich gerade neu angemeldet haben

@@ -67,6 +67,10 @@ class PartyRoom(val roomCode: String = RoomCode.generate()) {
 
     suspend fun removePlayer(id: Int) = update { game.remove(id) }
 
+    suspend fun addScore(playerId: Int, delta: Int) = update { game.addScore(playerId, delta) }
+
+    suspend fun resetScores() = update { game.resetScores() }
+
     /** „Übernehmen“: Spieler [newId] wird wieder zum getrennten Spieler [oldId]. */
     suspend fun mergePlayers(oldId: Int, newId: Int) = update { game.merge(oldId, newId) }
 
@@ -238,7 +242,8 @@ fun main(args: Array<String>): Unit = runBlocking {
     val port = server.start()
     println("Party Buttons: http://localhost:$port/j/${server.room.roomCode}")
     println("Befehle: o = Runde starten, l = sperren, f = Sperre nach erstem Druck an/aus,")
-    println("         m = Buzzer/Antworten umschalten, n4 = vier Knöpfe, rB = auflösen mit B richtig, r- = ohne richtige")
+    println("         m = Buzzer/Antworten umschalten, n4 = vier Knöpfe, rB = auflösen mit B richtig, r- = ohne richtige,")
+    println("         p2 = Spieler 2 einen Punkt")
     launch(kotlinx.coroutines.Dispatchers.IO) {
         while (true) {
             val line = readlnOrNull()?.trim() ?: break
@@ -249,13 +254,14 @@ fun main(args: Array<String>): Unit = runBlocking {
                 line == "f" -> server.room.setLockOnFirst(!round.lockOnFirst)
                 line == "m" -> server.room.setMode(if (round.nextMode == Mode.BUZZER) Mode.CHOICE else Mode.BUZZER)
                 line.startsWith("n") -> line.drop(1).toIntOrNull()?.let { server.room.setOptions(it) }
+                line.startsWith("p") -> line.drop(1).toIntOrNull()?.let { server.room.addScore(it, 1) }
                 line == "r-" -> server.room.reveal(null)
                 line.startsWith("r") && line.length == 2 -> server.room.reveal(line[1].uppercaseChar() - 'A')
             }
         }
     }
     server.room.snapshot.collect { (players, round) ->
-        println("Spieler: " + players.joinToString { "${it.id} ${it.name}" + if (it.connected) "" else " (getrennt)" })
+        println("Spieler: " + players.joinToString { "${it.id} ${it.name} ${it.score} P." + if (it.connected) "" else " (getrennt)" })
         println("Runde ${round.number} ${round.mode} ${round.phase} (nächste: ${round.nextMode}, ${round.nextOptions} Knöpfe; " +
             "Sperre nach erstem: ${round.lockOnFirst}): " +
             round.presses.joinToString {
