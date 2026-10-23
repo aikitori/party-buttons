@@ -39,10 +39,25 @@
 
       <section id="view-joined" class="view" hidden>
         <p class="status"><span data-i18n="joinedAs"></span> <strong id="player-name"></strong></p>
-        <p id="score" class="score"></p>
+        <div class="badges">
+          <p id="score" class="score"></p>
+          <button type="button" id="team" class="team" hidden></button>
+        </div>
+        <div id="team-picker" class="team-picker" hidden>
+          <p data-i18n="pickTeam"></p>
+          <div id="team-buttons" class="team-buttons"></div>
+        </div>
         <button type="button" id="buzzer" class="buzzer" disabled data-i18n="buzzer"></button>
         <div id="choices" class="choices" hidden></div>
         <p id="round-status" class="status round-status"></p>
+        <section id="buzzes" class="buzzes" hidden>
+          <h2 data-i18n="buzzOrder"></h2>
+          <ol id="buzz-list"></ol>
+        </section>
+        <section id="team-scores" class="team-scores" hidden>
+          <h2 data-i18n="teamScores"></h2>
+          <div id="team-score-list"></div>
+        </section>
       </section>
 
       <form id="view-code" class="view name-form" hidden novalidate>

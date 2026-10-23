@@ -1,6 +1,6 @@
 import { Connection } from "./connection";
 import { apply, onLangChange, setLang, t, type Key, type Lang } from "./i18n";
-import { MAX_NAME_LENGTH, optionLabel, type NameProblem, type RoundState, type ServerMessage } from "./protocol";
+import { MAX_NAME_LENGTH, TEAM_COLORS, optionLabel, type NameProblem, type RoundState, type ServerMessage } from "./protocol";
 import { getToken, lastName, newToken, rememberName } from "./token";
 
 type View =
@@ -24,7 +24,9 @@ const HINT_AFTER_MS = 10_000;
 // eigene Antwort, bis der Host sie bestätigt
 let round: RoundState = {
   round: 0, phase: "idle", myRank: null, mode: "buzzer", options: 0, myAnswer: null, correct: null, counts: null, score: 0,
+  teams: 0, myTeam: null, teamScores: null, buzzes: [],
 };
+let teamPickerOpen = false;
 let pressedRound = -1;
 let pending: { round: number; option: number } | null = null;
 
@@ -64,8 +66,70 @@ function render(): void {
   }
 }
 
+const teamName = (team: number) => t("teamName", { name: t(`team${team}` as Key) });
+
+function el<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, text = ""): HTMLElementTagNameMap[K] {
+  return Object.assign(document.createElement(tag), { className, textContent: text });
+}
+
+function dot(color: string): HTMLElement {
+  const span = el("span", "dot");
+  span.style.background = color;
+  return span;
+}
+
+function renderTeams(): void {
+  const hasTeams = round.teams > 0 && round.myTeam !== null;
+  const chip = $<HTMLButtonElement>("team");
+  chip.hidden = !hasTeams;
+  $("team-picker").hidden = !hasTeams || !teamPickerOpen;
+  $("team-scores").hidden = !hasTeams;
+  if (!hasTeams) return;
+
+  chip.replaceChildren(dot(TEAM_COLORS[round.myTeam!]), teamName(round.myTeam!), el("span", "change", t("changeTeam")));
+  $("team-buttons").replaceChildren(
+    ...Array.from({ length: round.teams }, (_, team) => {
+      const button = el("button", "team-choice", teamName(team));
+      button.type = "button";
+      button.style.background = TEAM_COLORS[team];
+      button.classList.toggle("mine", team === round.myTeam);
+      button.addEventListener("click", () => {
+        teamPickerOpen = false;
+        connection.send({ type: "team", team });
+        renderTeams();
+      });
+      return button;
+    }),
+  );
+  $("team-score-list").replaceChildren(
+    ...(round.teamScores ?? []).map((score, team) => {
+      const row = el("div", "team-score");
+      row.append(dot(TEAM_COLORS[team]), el("span", "", teamName(team)), el("strong", "", String(score)));
+      row.classList.toggle("mine", team === round.myTeam);
+      return row;
+    }),
+  );
+}
+
+// Wer schon gebuzzert hat; fremde Antworten sieht niemand
+function renderBuzzes(): void {
+  const show = round.mode === "buzzer" && round.buzzes.length > 0;
+  $("buzzes").hidden = !show;
+  if (!show) return;
+  $("buzz-list").replaceChildren(
+    ...round.buzzes.map((buzz, i) => {
+      const item = el("li", "");
+      item.append(dot(buzz.team !== null ? TEAM_COLORS[buzz.team] : buzz.color), el("span", "name", buzz.name));
+      if (i > 0) item.append(el("span", "gap", `+${buzz.offsetMs} ms`));
+      return item;
+    }),
+  );
+}
+
 function renderRound(): void {
   $("score").textContent = round.score === 1 ? t("scoreOne") : t("scoreMany", { n: round.score });
+  renderTeams();
+  renderBuzzes();
   const choice = round.mode === "choice";
   $("buzzer").hidden = choice;
   $("choices").hidden = !choice;
@@ -258,6 +322,11 @@ $<HTMLFormElement>("view-code").addEventListener("submit", (event) => {
   }
   // neue Adresse, damit Neuladen und Lesezeichen den richtigen Code haben; Token und Name bleiben im Speicher
   location.assign(`/j/${code}`);
+});
+
+$("team").addEventListener("click", () => {
+  teamPickerOpen = !teamPickerOpen;
+  renderTeams();
 });
 
 $("notice-button").addEventListener("click", () => {

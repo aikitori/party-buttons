@@ -30,6 +30,11 @@ sealed interface ClientMessage {
     @SerialName("answer")
     data class Answer(val round: Int, val option: Int) : ClientMessage
 
+    /** Mitspieler wechselt in Team [team] (0-basiert). */
+    @Serializable
+    @SerialName("team")
+    data class ChooseTeam(val team: Int) : ClientMessage
+
     /** Antwort auf [ServerMessage.Ping], sofort und mit demselben [t]. */
     @Serializable
     @SerialName("pong")
@@ -62,6 +67,14 @@ sealed interface ServerMessage {
         val counts: List<Int>? = null,
         /** Punktestand dieses Spielers. */
         val score: Int = 0,
+        /** Anzahl Teams, 0 = ohne Teams. */
+        val teams: Int = 0,
+        /** Team dieses Spielers (0-basiert), null ohne Teams. */
+        val myTeam: Int? = null,
+        /** Punkte pro Team (Index = Team), null ohne Teams. */
+        val teamScores: List<Int>? = null,
+        /** Wer beim Buzzer schon gedrückt hat, in Reihenfolge. Bei Antworten immer leer: niemand sieht fremde Antworten. */
+        val buzzes: List<Buzz> = emptyList(),
     ) : ServerMessage
 
     /** Laufzeitmessung: Der Browser schickt [t] als [ClientMessage.Pong] zurück. */
@@ -104,6 +117,10 @@ sealed interface ServerMessage {
     @SerialName("removed")
     data object Removed : ServerMessage
 }
+
+/** Ein Druck in der Übersicht der Mitspielenden. */
+@Serializable
+data class Buzz(val name: String, val color: String, val team: Int?, val offsetMs: Long)
 
 /** Rundenart, siehe PLAN.md. */
 @Serializable

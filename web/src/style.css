@@ -262,8 +262,128 @@ h1.player::before {
   color: #fff;
 }
 
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: -16px;
+}
+
+.team {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  border-radius: 999px;
+  padding: 4px 14px;
+  background: var(--chip);
+  color: var(--fg);
+  font: inherit;
+  font-weight: 700;
+}
+
+.team .change {
+  font-weight: 400;
+  color: var(--muted);
+  text-decoration: underline;
+}
+
+.dot {
+  display: inline-block;
+  flex: none;
+  width: 0.8em;
+  height: 0.8em;
+  border-radius: 50%;
+}
+
+.team-picker {
+  width: 100%;
+  text-align: center;
+}
+
+.team-picker p {
+  margin: 0 0 8px;
+}
+
+.team-buttons {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.team-choice {
+  border: 0;
+  border-radius: 12px;
+  padding: 12px;
+  color: #fff;
+  font: inherit;
+  font-weight: 700;
+}
+
+.team-choice.mine {
+  outline: 4px solid var(--fg);
+  outline-offset: -4px;
+}
+
+.buzzes,
+.team-scores {
+  width: 100%;
+}
+
+.buzzes[hidden],
+.team-scores[hidden],
+.team-picker[hidden],
+.team[hidden] {
+  display: none;
+}
+
+.buzzes h2,
+.team-scores h2 {
+  margin: 0 0 6px;
+  font-size: 0.9rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.buzzes ol {
+  margin: 0;
+  padding-left: 1.6em;
+}
+
+.buzzes li {
+  padding: 4px 0;
+}
+
+.buzzes li .dot {
+  margin-right: 8px;
+}
+
+.buzzes .gap {
+  float: right;
+  font-family: ui-monospace, monospace;
+  color: var(--muted);
+}
+
+.team-score {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.team-score strong {
+  margin-left: auto;
+  font-family: ui-monospace, monospace;
+}
+
+.team-score.mine {
+  font-weight: 700;
+}
+
 .score {
-  margin: -16px 0 0;
+  margin: 0;
   padding: 4px 14px;
   border-radius: 999px;
   background: var(--chip);

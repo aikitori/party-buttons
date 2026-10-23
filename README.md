@@ -22,6 +22,8 @@
 - **Buzzer:** First press wins. The host sees the order, the time and the gap in milliseconds.
 - **Answers:** 2 to 8 buttons (A–H). Answers stay hidden until the host reveals the correct one.
 - **Scores:** automatic for correct answers, by hand for the buzzer.
+- **Teams:** 2 to 6 teams, pick your own or let the host shuffle. Team score is the sum of its players.
+- **Live overview for players:** everyone sees who buzzed and the team standings, never anyone else's answer.
 - **Fair:** Each device's network delay is measured and compensated.
 - **Reconnect:** Lose the connection or reload the page and you're still the same player.
 - **Offline:** Same Wi-Fi or the host's hotspot is all it takes. No internet, no account.

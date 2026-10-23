@@ -15,11 +15,11 @@ class ProtocolTest {
         assertEquals("""{"type":"nameRejected","reason":"tooLong"}""",
             Protocol.encode(ServerMessage.NameRejected(NameProblem.TOO_LONG)))
         assertEquals(
-            """{"type":"state","round":2,"phase":"locked","myRank":null,"mode":"buzzer","options":0,"myAnswer":null,"correct":null,"counts":null,"score":0}""",
+            """{"type":"state","round":2,"phase":"locked","myRank":null,"mode":"buzzer","options":0,"myAnswer":null,"correct":null,"counts":null,"score":0,"teams":0,"myTeam":null,"teamScores":null,"buzzes":[]}""",
             Protocol.encode(ServerMessage.State(2, Phase.LOCKED, null)),
         )
         assertEquals(
-            """{"type":"state","round":3,"phase":"locked","myRank":1,"mode":"choice","options":3,"myAnswer":2,"correct":2,"counts":[0,1,4],"score":0}""",
+            """{"type":"state","round":3,"phase":"locked","myRank":1,"mode":"choice","options":3,"myAnswer":2,"correct":2,"counts":[0,1,4],"score":0,"teams":0,"myTeam":null,"teamScores":null,"buzzes":[]}""",
             Protocol.encode(ServerMessage.State(3, Phase.LOCKED, 1, Mode.CHOICE, 3, 2, 2, listOf(0, 1, 4))),
         )
     }

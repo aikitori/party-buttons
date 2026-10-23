@@ -95,9 +95,9 @@ class PartyServerTest {
             assertEquals("welcome", receiveType())
             assertEquals("state", receiveType())
             room.openRound()
-            assertEquals("""{"type":"state","round":1,"phase":"open","myRank":null,"mode":"buzzer","options":0,"myAnswer":null,"correct":null,"counts":null,"score":0}""", receiveText())
+            assertEquals("""{"type":"state","round":1,"phase":"open","myRank":null,"mode":"buzzer","options":0,"myAnswer":null,"correct":null,"counts":null,"score":0,"teams":0,"myTeam":null,"teamScores":null,"buzzes":[]}""", receiveText())
             sendJson("""{"type":"press","round":1}""")
-            assertEquals("""{"type":"state","round":1,"phase":"locked","myRank":1,"mode":"buzzer","options":0,"myAnswer":null,"correct":null,"counts":null,"score":0}""", receiveText())
+            assertEquals("""{"type":"state","round":1,"phase":"locked","myRank":1,"mode":"buzzer","options":0,"myAnswer":null,"correct":null,"counts":null,"score":0,"teams":0,"myTeam":null,"teamScores":null,"buzzes":[{"name":"Anna","color":"#e6194b","team":null,"offsetMs":0}]}""", receiveText())
         }
         assertEquals(listOf("Anna"), room.snapshot.value.round.presses.map { it.name })
     }
@@ -111,11 +111,11 @@ class PartyServerTest {
             room.setMode(Mode.CHOICE)
             room.setOptions(3)
             room.openRound()
-            assertEquals("""{"type":"state","round":1,"phase":"open","myRank":null,"mode":"choice","options":3,"myAnswer":null,"correct":null,"counts":null,"score":0}""", receiveText())
+            assertEquals("""{"type":"state","round":1,"phase":"open","myRank":null,"mode":"choice","options":3,"myAnswer":null,"correct":null,"counts":null,"score":0,"teams":0,"myTeam":null,"teamScores":null,"buzzes":[]}""", receiveText())
             sendJson("""{"type":"answer","round":1,"option":2}""")
-            assertEquals("""{"type":"state","round":1,"phase":"open","myRank":null,"mode":"choice","options":3,"myAnswer":2,"correct":null,"counts":null,"score":0}""", receiveText())
+            assertEquals("""{"type":"state","round":1,"phase":"open","myRank":null,"mode":"choice","options":3,"myAnswer":2,"correct":null,"counts":null,"score":0,"teams":0,"myTeam":null,"teamScores":null,"buzzes":[]}""", receiveText())
             room.reveal(2)
-            assertEquals("""{"type":"state","round":1,"phase":"locked","myRank":1,"mode":"choice","options":3,"myAnswer":2,"correct":2,"counts":[0,0,1],"score":1}""", receiveText())
+            assertEquals("""{"type":"state","round":1,"phase":"locked","myRank":1,"mode":"choice","options":3,"myAnswer":2,"correct":2,"counts":[0,0,1],"score":1,"teams":0,"myTeam":null,"teamScores":null,"buzzes":[]}""", receiveText())
         }
     }
 

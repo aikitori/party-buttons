@@ -20,7 +20,12 @@ data class PlayerView(
     val connected: Boolean,
     val latencyMs: Long? = null,
     val score: Int = 0,
+    /** Team (0-basiert), null ohne Teams. */
+    val team: Int? = null,
 )
+
+/** Ein Team aus Sicht des Hosts; [score] ist die Summe der Punkte aller Mitglieder. */
+data class TeamView(val index: Int, val score: Int, val members: Int)
 
 /**
  * Ein Druck in der Reihenfolge. [atMs] ist der Zeitpunkt auf der Uhr des Servers (monoton, mit Laufzeitausgleich),
@@ -85,6 +90,7 @@ class Game(val roomCode: String) {
         var connection: ConnectionId? = null
 
         var score = 0
+        var team: Int? = null
 
         /** Gleitender Mittelwert der Laufzeit (hin und zurück), null bis zur ersten Messung. */
         var rttMs: Double? = null
@@ -122,8 +128,61 @@ class Game(val roomCode: String) {
     fun players(): List<PlayerView> =
         players.values.map {
             val connected = it.connection != null
-            PlayerView(it.id, it.name, it.color, connected, if (connected) it.rttMs?.toLong() else null, it.score)
+            PlayerView(it.id, it.name, it.color, connected, if (connected) it.rttMs?.toLong() else null, it.score, it.team)
         }
+
+    /** Teams mit Punkten, leer ohne Teams. */
+    fun teams(): List<TeamView> = List(teamCount) { index ->
+        val members = players.values.filter { it.team == index }
+        TeamView(index, members.sumOf { it.score }, members.size)
+    }
+
+    /** Anzahl Teams, 0 = ohne Teams. */
+    var teamCount = 0
+        private set
+
+    /**
+     * Teams ein- oder ausschalten bzw. Anzahl ändern ([count] 0 oder 2 bis [Rules.MAX_TEAMS]).
+     * Wer noch kein Team hat oder in einem weggefallenen Team war, kommt ins kleinste.
+     */
+    fun setTeams(count: Int): List<Effect> {
+        teamCount = if (count <= 0) 0 else count.coerceIn(2, Rules.MAX_TEAMS)
+        if (teamCount == 0) {
+            players.values.forEach { it.team = null }
+        } else {
+            players.values.filter { it.team == null || it.team!! >= teamCount }.forEach {
+                it.team = null
+                it.team = smallestTeam()
+            }
+        }
+        return broadcastState()
+    }
+
+    /** Alle Spieler zufällig und gleichmäßig auf die Teams verteilen. */
+    fun shuffleTeams(random: kotlin.random.Random = kotlin.random.Random): List<Effect> {
+        if (teamCount == 0) return emptyList()
+        players.values.shuffled(random).forEachIndexed { i, player -> player.team = i % teamCount }
+        return broadcastState()
+    }
+
+    /** Host setzt einen Spieler in ein Team. */
+    fun setPlayerTeam(playerId: Int, team: Int): List<Effect> {
+        val player = players.values.firstOrNull { it.id == playerId } ?: return emptyList()
+        if (team !in 0 until teamCount) return emptyList()
+        player.team = team
+        return broadcastState()
+    }
+
+    /** Mitspieler wählt sein Team selbst. */
+    fun chooseTeam(conn: ConnectionId, team: Int): List<Effect> {
+        val player = byConnection[conn] ?: return emptyList()
+        if (team !in 0 until teamCount || player.team == team) return emptyList()
+        player.team = team
+        return broadcastState()
+    }
+
+    private fun smallestTeam(): Int =
+        (0 until teamCount).minBy { team -> players.values.count { it.team == team } }
 
     fun round(): RoundView {
         val first = presses.firstOrNull()?.atMs ?: 0
@@ -176,8 +235,10 @@ class Game(val roomCode: String) {
         if (problem != null) return listOf(Effect.Send(conn, ServerMessage.NameRejected(problem)))
 
         val player = Player(nextId++, token, name, freeColor())
+        if (teamCount > 0) player.team = smallestTeam()
         players[token] = player
-        return attach(conn, player)
+        // mit Teams ändert sich für alle die Teamgröße; ohne reicht der Neue selbst
+        return attach(conn, player) + if (teamCount > 0) broadcastState() else emptyList()
     }
 
     /** Gemessene Laufzeit einer Verbindung (Ping bis Pong). */
@@ -224,6 +285,8 @@ class Game(val roomCode: String) {
     fun addScore(playerId: Int, delta: Int): List<Effect> {
         val player = players.values.firstOrNull { it.id == playerId } ?: return emptyList()
         player.score += delta
+        // mit Teams ändert sich der Teamstand für alle Mitglieder
+        if (teamCount > 0) return broadcastState()
         return player.connection?.let { listOf(Effect.Send(it, stateFor(player))) } ?: emptyList()
     }
 
@@ -251,8 +314,8 @@ class Game(val roomCode: String) {
             byConnection.remove(conn)
             effects += Effect.Close(conn, ServerMessage.Removed)
         }
-        // die anderen rücken in der Reihenfolge auf
-        if (hadPressed) effects += broadcastState()
+        // die anderen rücken in der Reihenfolge auf; mit Teams ändern sich Größe und Stand
+        if (hadPressed || teamCount > 0) effects += broadcastState()
         return effects
     }
 
@@ -339,10 +402,21 @@ class Game(val roomCode: String) {
         lockedAtMs = nowMs
     }
 
-    private fun stateFor(player: Player): ServerMessage.State {
+    private fun stateFor(player: Player): ServerMessage.State = withTeams(player, roundStateFor(player))
+
+    private fun withTeams(player: Player, state: ServerMessage.State): ServerMessage.State =
+        if (teamCount == 0) {
+            state
+        } else {
+            state.copy(teams = teamCount, myTeam = player.team, teamScores = teams().map { it.score })
+        }
+
+    private fun roundStateFor(player: Player): ServerMessage.State {
         if (mode == Mode.BUZZER) {
             val rank = presses.indexOfFirst { it.player === player }.takeIf { it >= 0 }?.plus(1)
-            return ServerMessage.State(round, phase, rank, score = player.score)
+            val first = presses.firstOrNull()?.atMs ?: 0
+            val buzzes = presses.map { Buzz(it.player.name, it.player.color, it.player.team, it.atMs - first) }
+            return ServerMessage.State(round, phase, rank, score = player.score, buzzes = buzzes)
         }
         val mine = answers.firstOrNull { it.player === player }
         val revealed = phase == Phase.LOCKED

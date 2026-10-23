@@ -34,5 +34,16 @@
   "pollOver": "Abstimmung beendet.",
   "reconnectHint": "Klappt es nicht? Prüfe, ob du im selben WLAN wie der Host bist, und schalte mobile Daten aus.",
   "scoreOne": "1 Punkt",
-  "scoreMany": "{n} Punkte"
+  "scoreMany": "{n} Punkte",
+  "team0": "Rot",
+  "team1": "Blau",
+  "team2": "Grün",
+  "team3": "Gelb",
+  "team4": "Lila",
+  "team5": "Orange",
+  "teamName": "Team {name}",
+  "changeTeam": "Wechseln",
+  "pickTeam": "Wähle dein Team",
+  "buzzOrder": "Gedrückt haben",
+  "teamScores": "Teams"
 }

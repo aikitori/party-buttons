@@ -34,5 +34,16 @@
   "pollOver": "Voting closed.",
   "reconnectHint": "Not working? Check that you're on the same Wi-Fi as the host and turn off mobile data.",
   "scoreOne": "1 point",
-  "scoreMany": "{n} points"
+  "scoreMany": "{n} points",
+  "team0": "Red",
+  "team1": "Blue",
+  "team2": "Green",
+  "team3": "Yellow",
+  "team4": "Purple",
+  "team5": "Orange",
+  "teamName": "Team {name}",
+  "changeTeam": "Change",
+  "pickTeam": "Pick your team",
+  "buzzOrder": "Buzzed",
+  "teamScores": "Teams"
 }

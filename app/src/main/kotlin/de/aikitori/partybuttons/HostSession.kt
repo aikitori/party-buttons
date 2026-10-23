@@ -7,6 +7,7 @@ import androidx.core.content.ContextCompat
 import de.aikitori.partybuttons.core.Mode
 import de.aikitori.partybuttons.core.PlayerView
 import de.aikitori.partybuttons.core.RoundView
+import de.aikitori.partybuttons.core.TeamView
 import de.aikitori.partybuttons.server.LanAddresses
 import de.aikitori.partybuttons.server.PartyRoom
 import de.aikitori.partybuttons.server.PartyServer
@@ -36,6 +37,8 @@ sealed interface HostState {
         val round: RoundView,
         /** Zum Umrechnen von [de.aikitori.partybuttons.core.PressView.atMs] in die Uhrzeit. */
         val wallClockOffsetMs: Long,
+        /** Leer ohne Teams. */
+        val teams: List<TeamView> = emptyList(),
     ) : HostState
 }
 
@@ -77,6 +80,7 @@ object HostSession {
                 HostState.Running(
                     code, ips.map { "http://$it:${running.port}/j/$code" }, snapshot.players, snapshot.round,
                     running.room.wallClockOffsetMs,
+                    snapshot.teams,
                 )
             }.collect { _state.value = it }
         }
@@ -112,6 +116,12 @@ object HostSession {
     fun addScore(playerId: Int, delta: Int) = withRoom { it.addScore(playerId, delta) }
 
     fun resetScores() = withRoom { it.resetScores() }
+
+    fun setTeams(count: Int) = withRoom { it.setTeams(count) }
+
+    fun shuffleTeams() = withRoom { it.shuffleTeams() }
+
+    fun setPlayerTeam(playerId: Int, team: Int) = withRoom { it.setPlayerTeam(playerId, team) }
 
     private fun withRoom(action: suspend (PartyRoom) -> Unit) {
         val running = server ?: return

@@ -63,4 +63,18 @@
     <string name="reset_scores">Punkte zurücksetzen</string>
     <string name="reset_scores_question">Punkte aller Mitspielenden auf 0 setzen?</string>
     <string name="reset">Zurücksetzen</string>
+    <string name="teams_label">Teams</string>
+    <string name="teams_off">Aus</string>
+    <string name="team_0">Rot</string>
+    <string name="team_1">Blau</string>
+    <string name="team_2">Grün</string>
+    <string name="team_3">Gelb</string>
+    <string name="team_4">Lila</string>
+    <string name="team_5">Orange</string>
+    <string name="team_name">Team %1$s</string>
+    <string name="shuffle_teams">Auslosen</string>
+    <string name="move_to_team">Zu %1$s</string>
+    <string name="fewer_teams">Weniger Teams</string>
+    <string name="more_teams">Mehr Teams</string>
+    <string name="team_members">%1$d Spieler</string>
 </resources>

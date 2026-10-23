@@ -27,6 +27,9 @@ object Rules {
     /** Liegen die zwei schnellsten Drücke näher beieinander, zeigt der Host „gleichzeitig“. */
     const val TIE_MS = 20L
 
+    /** Höchstens so viele Teams; 0 heißt ohne Teams. */
+    const val MAX_TEAMS = 6
+
     /** So viele Punkte gibt es beim Auflösen für eine richtige Antwort. */
     const val POINTS_PER_CORRECT_ANSWER = 1
 

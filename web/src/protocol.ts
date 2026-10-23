@@ -5,7 +5,8 @@ export type ClientMessage =
   | { type: "join"; token: string; name: string }
   | { type: "press"; round: number }
   | { type: "answer"; round: number; option: number }
-  | { type: "pong"; t: number };
+  | { type: "pong"; t: number }
+  | { type: "team"; team: number };
 
 export type Phase = "idle" | "open" | "locked";
 export type Mode = "buzzer" | "choice";
@@ -20,7 +21,22 @@ export interface RoundState {
   correct: number | null;
   counts: number[] | null;
   score: number;
+  teams: number;
+  myTeam: number | null;
+  teamScores: number[] | null;
+  /** Wer beim Buzzer gedrückt hat; bei Antworten immer leer. */
+  buzzes: Buzz[];
 }
+
+export interface Buzz {
+  name: string;
+  color: string;
+  team: number | null;
+  offsetMs: number;
+}
+
+/** Teamfarben, gleiche Reihenfolge wie in der App (Rot, Blau, Grün, Gelb, Lila, Orange). */
+export const TEAM_COLORS = ["#d9363e", "#2f6fdb", "#2e8b3a", "#e0a800", "#8e44ad", "#f07c00"];
 
 export type NameProblem = "empty" | "tooLong" | "taken";
 

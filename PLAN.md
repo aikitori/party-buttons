@@ -1,6 +1,6 @@
 # Umsetzungsplan
 
-Stand 2026-10-23: M0 bis M5 umgesetzt, dazu Punktestand und Zeiten beim Host. Offen sind die „Späteren Ideen“ unten.
+Stand 2026-10-23: M0 bis M5 umgesetzt, dazu Punktestand, Zeiten beim Host, Teams und Übersicht der Drücke für alle. Offen sind die „Späteren Ideen“ unten.
 
 ## Idee in einem Satz
 
@@ -124,7 +124,7 @@ Browser geschlossen), muss beim Wiederkommen derselbe Spieler sein, mit Name, Fa
 | M4 | Laufzeitausgleich, Töne beim Host, Vibration beim Client, „Übernehmen“ beim Host | fair und rund |
 | M5 | Release-Signierung, App-Icon, Hinweise bei Problemen (siehe unten) | APK zum Weitergeben |
 
-Spätere Ideen: Teams mit gemeinsamer Farbe, eigene Beschriftung der Antwort-Knöpfe, mehrere Knöpfe pro Gerät,
+Spätere Ideen: eigene Teamnamen, eigene Beschriftung der Antwort-Knöpfe, mehrere Knöpfe pro Gerät,
 Sperre für Spieler, die zu früh drücken.
 
 ## Bekannte Stolpersteine

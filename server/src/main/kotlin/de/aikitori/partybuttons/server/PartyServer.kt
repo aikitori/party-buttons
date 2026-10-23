@@ -11,6 +11,7 @@ import de.aikitori.partybuttons.core.RoomCode
 import de.aikitori.partybuttons.core.RoundView
 import de.aikitori.partybuttons.core.Rules
 import de.aikitori.partybuttons.core.ServerMessage
+import de.aikitori.partybuttons.core.TeamView
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.withCharset
@@ -47,8 +48,8 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
-/** Alles, was die Host-Oberfläche zeigt. */
-data class HostSnapshot(val players: List<PlayerView>, val round: RoundView)
+/** Alles, was die Host-Oberfläche zeigt. [teams] ist leer ohne Teams. */
+data class HostSnapshot(val players: List<PlayerView>, val round: RoundView, val teams: List<TeamView> = emptyList())
 
 /**
  * Ein laufendes Spiel: [Game] plus die offenen WebSocket-Verbindungen.
@@ -60,7 +61,7 @@ class PartyRoom(val roomCode: String = RoomCode.generate()) {
     private val sessions = ConcurrentHashMap<ConnectionId, DefaultWebSocketServerSession>()
     private val nextConnection = AtomicLong(1)
 
-    private val _snapshot = MutableStateFlow(HostSnapshot(game.players(), game.round()))
+    private val _snapshot = MutableStateFlow(HostSnapshot(game.players(), game.round(), game.teams()))
 
     /** Für die Host-Oberfläche: alle Spieler (auch getrennte) und die Runde. */
     val snapshot: StateFlow<HostSnapshot> = _snapshot.asStateFlow()
@@ -70,6 +71,13 @@ class PartyRoom(val roomCode: String = RoomCode.generate()) {
     suspend fun addScore(playerId: Int, delta: Int) = update { game.addScore(playerId, delta) }
 
     suspend fun resetScores() = update { game.resetScores() }
+
+    /** 0 = ohne Teams, sonst 2 bis [Rules.MAX_TEAMS]. */
+    suspend fun setTeams(count: Int) = update { game.setTeams(count) }
+
+    suspend fun shuffleTeams() = update { game.shuffleTeams() }
+
+    suspend fun setPlayerTeam(playerId: Int, team: Int) = update { game.setPlayerTeam(playerId, team) }
 
     /** „Übernehmen“: Spieler [newId] wird wieder zum getrennten Spieler [oldId]. */
     suspend fun mergePlayers(oldId: Int, newId: Int) = update { game.merge(oldId, newId) }
@@ -117,6 +125,7 @@ class PartyRoom(val roomCode: String = RoomCode.generate()) {
                         val at = now()
                         update { game.press(conn, message.round, at) }
                     }
+                    is ClientMessage.ChooseTeam -> update { game.chooseTeam(conn, message.team) }
                     is ClientMessage.Pong -> {
                         val rtt = now() - message.t
                         update { game.reportRtt(conn, rtt) }
@@ -139,7 +148,7 @@ class PartyRoom(val roomCode: String = RoomCode.generate()) {
     private suspend fun update(change: () -> List<Effect>) {
         val effects = lock.withLock {
             val effects = change()
-            _snapshot.value = HostSnapshot(game.players(), game.round())
+            _snapshot.value = HostSnapshot(game.players(), game.round(), game.teams())
             effects
         }
         for (effect in effects) {
@@ -243,7 +252,7 @@ fun main(args: Array<String>): Unit = runBlocking {
     println("Party Buttons: http://localhost:$port/j/${server.room.roomCode}")
     println("Befehle: o = Runde starten, l = sperren, f = Sperre nach erstem Druck an/aus,")
     println("         m = Buzzer/Antworten umschalten, n4 = vier Knöpfe, rB = auflösen mit B richtig, r- = ohne richtige,")
-    println("         p2 = Spieler 2 einen Punkt")
+    println("         p2 = Spieler 2 einen Punkt, t2 = zwei Teams (t0 aus), s = Teams auslosen")
     launch(kotlinx.coroutines.Dispatchers.IO) {
         while (true) {
             val line = readlnOrNull()?.trim() ?: break
@@ -255,13 +264,18 @@ fun main(args: Array<String>): Unit = runBlocking {
                 line == "m" -> server.room.setMode(if (round.nextMode == Mode.BUZZER) Mode.CHOICE else Mode.BUZZER)
                 line.startsWith("n") -> line.drop(1).toIntOrNull()?.let { server.room.setOptions(it) }
                 line.startsWith("p") -> line.drop(1).toIntOrNull()?.let { server.room.addScore(it, 1) }
+                line.startsWith("t") -> line.drop(1).toIntOrNull()?.let { server.room.setTeams(it) }
+                line == "s" -> server.room.shuffleTeams()
                 line == "r-" -> server.room.reveal(null)
                 line.startsWith("r") && line.length == 2 -> server.room.reveal(line[1].uppercaseChar() - 'A')
             }
         }
     }
-    server.room.snapshot.collect { (players, round) ->
-        println("Spieler: " + players.joinToString { "${it.id} ${it.name} ${it.score} P." + if (it.connected) "" else " (getrennt)" })
+    server.room.snapshot.collect { (players, round, teams) ->
+        println("Spieler: " + players.joinToString {
+            "${it.id} ${it.name} ${it.score} P." + (it.team?.let { t -> " T$t" } ?: "") + if (it.connected) "" else " (getrennt)"
+        })
+        if (teams.isNotEmpty()) println("Teams: " + teams.joinToString { "T${it.index} ${it.members} Spieler ${it.score} P." })
         println("Runde ${round.number} ${round.mode} ${round.phase} (nächste: ${round.nextMode}, ${round.nextOptions} Knöpfe; " +
             "Sperre nach erstem: ${round.lockOnFirst}): " +
             round.presses.joinToString {

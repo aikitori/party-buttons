@@ -80,6 +80,7 @@ import androidx.core.os.LocaleListCompat
 import de.aikitori.partybuttons.core.Phase
 import de.aikitori.partybuttons.core.PlayerView
 import de.aikitori.partybuttons.core.RoundView
+import de.aikitori.partybuttons.core.TeamView
 import de.aikitori.partybuttons.core.Rules
 
 // AppCompatActivity statt ComponentActivity: nur damit funktioniert AppCompatDelegate.setApplicationLocales
@@ -190,7 +191,15 @@ private fun ColumnScope.RunningGame(state: HostState.Running) {
 
     // Mitte: Runde und Ergebnis, darunter die Spieler; scrollt bei vielen Spielern
     LazyColumn(Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        item { RoundResult(state.round, connectedPlayers = state.players.count { it.connected }, state.wallClockOffsetMs) }
+        item {
+            RoundResult(
+                state.round,
+                connectedPlayers = state.players.count { it.connected },
+                state.wallClockOffsetMs,
+                teamOf = state.players.associate { it.id to it.team },
+            )
+        }
+        item { TeamsSection(state.teams) }
         item {
             Text(
                 stringResource(R.string.players_title, state.players.size, Rules.MAX_PLAYERS),
@@ -202,7 +211,9 @@ private fun ColumnScope.RunningGame(state: HostState.Running) {
             item { Text(stringResource(R.string.no_players), color = MaterialTheme.colorScheme.onSurfaceVariant) }
         }
         // Rangliste: meiste Punkte oben, bei Gleichstand in der Reihenfolge des Beitretens
-        items(state.players.sortedByDescending { it.score }, key = { it.id }) { player -> PlayerRow(player, state.players) }
+        items(state.players.sortedByDescending { it.score }, key = { it.id }) { player ->
+            PlayerRow(player, state.players, state.teams.size)
+        }
     }
 
     // unten: Steuerung
@@ -307,7 +318,7 @@ private fun IconTextButton(symbol: String, description: String, enabled: Boolean
 }
 
 @Composable
-private fun RoundResult(round: RoundView, connectedPlayers: Int, wallClockOffsetMs: Long) {
+private fun RoundResult(round: RoundView, connectedPlayers: Int, wallClockOffsetMs: Long, teamOf: Map<Int, Int?>) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
             stringResource(
@@ -320,14 +331,14 @@ private fun RoundResult(round: RoundView, connectedPlayers: Int, wallClockOffset
             style = MaterialTheme.typography.titleMedium,
         )
         when (round.mode) {
-            Mode.BUZZER -> BuzzerResult(round, wallClockOffsetMs)
-            Mode.CHOICE -> ChoiceResult(round, connectedPlayers, wallClockOffsetMs)
+            Mode.BUZZER -> BuzzerResult(round, wallClockOffsetMs, teamOf)
+            Mode.CHOICE -> ChoiceResult(round, connectedPlayers, wallClockOffsetMs, teamOf)
         }
     }
 }
 
 @Composable
-private fun BuzzerResult(round: RoundView, wallClockOffsetMs: Long) {
+private fun BuzzerResult(round: RoundView, wallClockOffsetMs: Long, teamOf: Map<Int, Int?>) {
     val first = round.presses.firstOrNull()
     if (first != null) {
         // Platz 1 groß, in der Farbe des Spielers
@@ -335,7 +346,7 @@ private fun BuzzerResult(round: RoundView, wallClockOffsetMs: Long) {
             Box(Modifier.size(40.dp).background(parseColor(first.color), CircleShape))
             Column(Modifier.weight(1f)) {
                 Text(first.name, fontSize = 40.sp, fontWeight = FontWeight.Bold)
-                PressTimes(first.atMs + wallClockOffsetMs, first.sinceOpenMs)
+                PressTimes(first.atMs + wallClockOffsetMs, first.sinceOpenMs, teamOf[first.playerId])
             }
             // der Host entscheidet, ob die Antwort stimmte
             FilledTonalButton(onClick = { HostSession.addScore(first.playerId, 1) }) { Text(stringResource(R.string.add_point)) }
@@ -349,7 +360,7 @@ private fun BuzzerResult(round: RoundView, wallClockOffsetMs: Long) {
                 Box(Modifier.size(14.dp).background(parseColor(press.color), CircleShape))
                 Column(Modifier.weight(1f)) {
                     Text(press.name)
-                    PressTimes(press.atMs + wallClockOffsetMs, press.sinceOpenMs)
+                    PressTimes(press.atMs + wallClockOffsetMs, press.sinceOpenMs, teamOf[press.playerId])
                 }
                 Text(
                     stringResource(R.string.offset_ms, press.offsetMs),
@@ -366,9 +377,10 @@ private fun BuzzerResult(round: RoundView, wallClockOffsetMs: Long) {
 
 /** Uhrzeit des Drucks (geschätzter Moment des Drückens, mit Laufzeitausgleich) und Zeit seit dem Freigeben. */
 @Composable
-private fun PressTimes(wallClockMs: Long, sinceOpenMs: Long) {
+private fun PressTimes(wallClockMs: Long, sinceOpenMs: Long, team: Int? = null) {
+    val prefix = team?.let { teamName(it) + " · " } ?: ""
     Text(
-        stringResource(R.string.press_times, formatClock(wallClockMs), sinceOpenMs / 1000.0),
+        prefix + stringResource(R.string.press_times, formatClock(wallClockMs), sinceOpenMs / 1000.0),
         style = MaterialTheme.typography.bodySmall,
         fontFamily = FontFamily.Monospace,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -381,7 +393,7 @@ private fun formatClock(wallClockMs: Long): String =
     Instant.ofEpochMilli(wallClockMs).atZone(ZoneId.systemDefault()).toLocalTime().format(clockFormat)
 
 @Composable
-private fun ChoiceResult(round: RoundView, connectedPlayers: Int, wallClockOffsetMs: Long) {
+private fun ChoiceResult(round: RoundView, connectedPlayers: Int, wallClockOffsetMs: Long, teamOf: Map<Int, Int?>) {
     if (round.phase == Phase.OPEN) {
         // nur wer, nicht was: sonst könnte man auf dem Host-Bildschirm abschauen
         Text(
@@ -420,7 +432,7 @@ private fun ChoiceResult(round: RoundView, connectedPlayers: Int, wallClockOffse
                 Box(Modifier.size(14.dp).background(parseColor(answer.color), CircleShape))
                 Column(Modifier.weight(1f)) {
                     Text(answer.name, fontWeight = if (i == 0) FontWeight.Bold else null)
-                    PressTimes(answer.atMs + wallClockOffsetMs, answer.offsetMs)
+                    PressTimes(answer.atMs + wallClockOffsetMs, answer.offsetMs, teamOf[answer.playerId])
                 }
                 // Abstand zum schnellsten Richtigen
                 if (i > 0) {
@@ -436,6 +448,50 @@ private fun ChoiceResult(round: RoundView, connectedPlayers: Int, wallClockOffse
 }
 
 private val CorrectGreen = Color(0xFF2E8B3A)
+
+/** Teamfarben wie auf der Seite der Mitspielenden (web/src/protocol.ts). */
+private val TeamColors = listOf(
+    Color(0xFFD9363E), Color(0xFF2F6FDB), Color(0xFF2E8B3A), Color(0xFFE0A800), Color(0xFF8E44AD), Color(0xFFF07C00),
+)
+
+private val teamNames = listOf(R.string.team_0, R.string.team_1, R.string.team_2, R.string.team_3, R.string.team_4, R.string.team_5)
+
+@Composable
+private fun teamName(team: Int): String = stringResource(R.string.team_name, stringResource(teamNames[team]))
+
+/** Teams ein/aus und Anzahl, Auslosen, Stand pro Team. */
+@Composable
+private fun TeamsSection(teams: List<TeamView>) {
+    Column(Modifier.padding(top = 16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(stringResource(R.string.teams_label), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+            val count = teams.size
+            IconTextButton("−", stringResource(R.string.fewer_teams), enabled = count > 0) {
+                HostSession.setTeams(if (count <= 2) 0 else count - 1)
+            }
+            Text(if (count == 0) stringResource(R.string.teams_off) else count.toString(), fontWeight = FontWeight.Bold)
+            IconTextButton("+", stringResource(R.string.more_teams), enabled = count < Rules.MAX_TEAMS) {
+                HostSession.setTeams(if (count == 0) 2 else count + 1)
+            }
+            if (count > 0) TextButton(onClick = HostSession::shuffleTeams) { Text(stringResource(R.string.shuffle_teams)) }
+        }
+        // Rangliste der Teams
+        for (team in teams.sortedByDescending { it.score }) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Box(Modifier.size(16.dp).background(TeamColors[team.index], CircleShape))
+                Column(Modifier.weight(1f)) {
+                    Text(teamName(team.index), fontWeight = FontWeight.Bold)
+                    Text(
+                        stringResource(R.string.team_members, team.members),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Text(stringResource(R.string.score_points, team.score), fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+            }
+        }
+    }
+}
 
 /** QR-Code, immer schwarz auf weiß (Kameras kommen mit hell auf dunkel schlecht zurecht). */
 @Composable
@@ -455,16 +511,20 @@ private fun QrImage(text: String, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun PlayerRow(player: PlayerView, everyone: List<PlayerView>) {
+private fun PlayerRow(player: PlayerView, everyone: List<PlayerView>, teamCount: Int) {
     val alpha = if (player.connected) 1f else 0.45f
     var merging by remember { mutableStateOf(false) }
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Box(Modifier.size(16.dp).background(parseColor(player.color).copy(alpha = alpha), CircleShape))
         Column(Modifier.weight(1f)) {
-            Text(player.name, color = MaterialTheme.colorScheme.onSurface.copy(alpha = alpha))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                player.team?.let { Box(Modifier.padding(end = 6.dp).size(10.dp).background(TeamColors[it], CircleShape)) }
+                Text(player.name, color = MaterialTheme.colorScheme.onSurface.copy(alpha = alpha))
+            }
             val status = stringResource(if (player.connected) R.string.player_connected else R.string.player_disconnected)
             val latency = player.latencyMs?.let { " · " + stringResource(R.string.latency, it) } ?: ""
-            Text(status + latency, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            val team = player.team?.let { teamName(it) + " · " } ?: ""
+            Text(team + status + latency, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Text(stringResource(R.string.score_points, player.score), fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
         IconTextButton("−", stringResource(R.string.remove_point), enabled = true) { HostSession.addScore(player.id, -1) }
@@ -477,6 +537,14 @@ private fun PlayerRow(player: PlayerView, everyone: List<PlayerView>) {
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.merge_player)) },
                         onClick = { menu = false; merging = true },
+                    )
+                }
+                for (team in 0 until teamCount) {
+                    if (team == player.team) continue
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.move_to_team, teamName(team))) },
+                        leadingIcon = { Box(Modifier.size(12.dp).background(TeamColors[team], CircleShape)) },
+                        onClick = { menu = false; HostSession.setPlayerTeam(player.id, team) },
                     )
                 }
                 DropdownMenuItem(

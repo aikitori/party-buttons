@@ -20,7 +20,8 @@ class BuzzerTest {
 
     private fun stateOf(effects: List<Effect>, conn: ConnectionId): ServerMessage.State =
         effects.filterIsInstance<Effect.Send>().filter { it.to == conn }.map { it.message }
-            .filterIsInstance<ServerMessage.State>().last()
+            // die Übersicht der Drücke prüft TeamsTest; hier zählen Runde, Phase und Platz
+            .filterIsInstance<ServerMessage.State>().last().copy(buzzes = emptyList())
 
     @Test
     fun `vor der ersten Runde ist der Buzzer aus`() {
