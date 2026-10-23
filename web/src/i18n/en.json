@@ -31,5 +31,6 @@
   "rankCorrect": "Correct! Place {n} among the fastest.",
   "wrongAnswer": "Wrong. The answer was {x}.",
   "noAnswer": "No answer. The answer was {x}.",
-  "pollOver": "Voting closed."
+  "pollOver": "Voting closed.",
+  "reconnectHint": "Not working? Check that you're on the same Wi-Fi as the host and turn off mobile data."
 }

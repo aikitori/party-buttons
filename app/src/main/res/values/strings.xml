@@ -52,4 +52,8 @@
     <string name="tie">Tie!</string>
     <string name="latency">%1$d ms</string>
     <string name="cancel">Cancel</string>
+    <string name="help_button">Nobody can join?</string>
+    <string name="help_title">If nobody can join</string>
+    <string name="help_text">• Everyone has to be on the same Wi-Fi as this phone.\n• Guest Wi-Fi often blocks devices from seeing each other. Then turn on this phone\'s hotspot and let the others join it.\n• Phones sometimes ignore a Wi-Fi without internet and use mobile data. Then turn off mobile data on that phone.\n• Without the QR code: type the address shown here into the browser. Just the numbers before /j/ are enough; the game code can then be typed in.\n• Keep this app open or in the background; ending the game from the notification closes it for everyone.</string>
+    <string name="ok">OK</string>
 </resources>

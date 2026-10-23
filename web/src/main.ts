@@ -16,6 +16,9 @@ const roomCode = location.pathname.match(/^\/j\/([A-Za-z0-9]+)/)?.[1]?.toUpperCa
 let token = getToken();
 let view: View = { kind: "connecting" };
 let online = false;
+// seit wann die Verbindung weg ist; nach einer Weile kommt ein Hinweis, was man prüfen kann
+let offlineSince: number | null = null;
+const HINT_AFTER_MS = 10_000;
 
 // Runde, wie der Host sie zuletzt gemeldet hat; pressedRound und pending merken den eigenen Druck bzw. die
 // eigene Antwort, bis der Host sie bestätigt
@@ -38,6 +41,7 @@ function render(): void {
   }
   // Banner nur, wenn man schon drin war und die Verbindung weg ist
   $("banner").hidden = online || (view.kind !== "joined" && view.kind !== "name");
+  $("banner-hint").hidden = offlineSince === null || Date.now() - offlineSince < HINT_AFTER_MS;
 
   const heading = $("heading");
   heading.style.removeProperty("--player");
@@ -216,12 +220,15 @@ const connection = new Connection(
   wsUrl,
   () => {
     online = true;
+    offlineSince = null;
     connection.send({ type: "hello", token });
     render();
   },
   handle,
   () => {
     online = false;
+    offlineSince ??= Date.now();
+    window.setTimeout(render, HINT_AFTER_MS);
     // aus der Namenseingabe heraus nichts verlieren, nur beim Warten auf den ersten Kontakt "Verbinde …"
     if (view.kind === "notice") return;
     render();

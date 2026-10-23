@@ -1,5 +1,7 @@
 # Umsetzungsplan
 
+Stand 2026-10-23: M0 bis M5 umgesetzt. Offen sind die „Späteren Ideen“ unten.
+
 ## Idee in einem Satz
 
 Die Android-App startet einen kleinen Webserver im WLAN, zeigt dessen Adresse als QR-Code, und die Mitspielenden

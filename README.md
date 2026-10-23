@@ -8,7 +8,10 @@ mit Reihenfolge und Zeitabstand.
 - Kein Internet nötig: Host und Mitspielende müssen nur im selben WLAN sein (oder am Hotspot des Hosts).
 - Kein Server, keine Anmeldung: Das Spiel läuft komplett auf dem Host-Handy.
 
-Stand: M2b (Buzzer und Antwort-Knöpfe A–H). Plan in [PLAN.md](PLAN.md).
+**Installieren:** [neuestes APK](https://github.com/aikitori/party-buttons/releases/latest/download/party-buttons.apk)
+aufs Host-Handy laden und öffnen (einmalig „Installation aus unbekannten Quellen“ erlauben).
+
+Stand: alle Meilensteine aus [PLAN.md](PLAN.md) umgesetzt.
 
 ## Entwickeln
 
@@ -30,3 +33,15 @@ Debug-APK als Artefakt ab.
 
 Texte gibt es auf Englisch und Deutsch: `app/src/main/res/values*/strings.xml` und `web/src/i18n/*.json`.
 `TranslationsTest` prüft, dass in beiden Sprachen dieselben Schlüssel stehen.
+
+## Release
+
+Jeder Push auf `main` baut ein signiertes APK und legt es als GitHub-Release `v0.<Laufnummer>` ab. Alle APKs
+sind mit demselben Schlüssel signiert, deshalb lassen sich Updates über die installierte App spielen. Der
+Schlüssel liegt als Repo-Secret vor (`ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`,
+`ANDROID_KEY_PASSWORD`) und wurde einmalig mit `bash scripts/keystore-einrichten.sh` erzeugt. Das Original
+liegt außerhalb des Repos und muss sicher aufgehoben werden; geht es verloren, muss die App einmal neu
+installiert werden.
+
+Debug-APKs aus anderen Branches haben einen anderen Schlüssel: Vor dem ersten Release-APK die Debug-Version
+deinstallieren.

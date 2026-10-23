@@ -201,7 +201,19 @@ private fun ColumnScope.RunningGame(state: HostState.Running) {
 
     // unten: Steuerung
     Controls(state)
-    TextButton(onClick = { HostSession.stop(context) }, Modifier.fillMaxWidth()) { Text(stringResource(R.string.stop_game)) }
+    var help by remember { mutableStateOf(false) }
+    Row {
+        TextButton(onClick = { help = true }, Modifier.weight(1f)) { Text(stringResource(R.string.help_button)) }
+        TextButton(onClick = { HostSession.stop(context) }, Modifier.weight(1f)) { Text(stringResource(R.string.stop_game)) }
+    }
+    if (help) {
+        AlertDialog(
+            onDismissRequest = { help = false },
+            title = { Text(stringResource(R.string.help_title)) },
+            text = { Text(stringResource(R.string.help_text)) },
+            confirmButton = { TextButton(onClick = { help = false }) { Text(stringResource(R.string.ok)) } },
+        )
+    }
 }
 
 @Composable

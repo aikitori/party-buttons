@@ -100,6 +100,16 @@ h1.player::before {
   text-align: center;
 }
 
+.banner p {
+  margin: 0;
+}
+
+.banner-hint {
+  margin-top: 4px;
+  font-size: 0.9rem;
+}
+
+.banner [hidden],
 .banner[hidden] {
   display: none;
 }
