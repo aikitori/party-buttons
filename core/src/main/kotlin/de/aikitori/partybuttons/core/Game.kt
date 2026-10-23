@@ -21,10 +21,24 @@ data class PlayerView(
     val latencyMs: Long? = null,
 )
 
-/** Ein Druck in der Reihenfolge; [offsetMs] ist der Abstand zum ersten Druck. */
-data class PressView(val rank: Int, val playerId: Int, val name: String, val color: String, val offsetMs: Long)
+/**
+ * Ein Druck in der Reihenfolge. [atMs] ist der Zeitpunkt auf der Uhr des Servers (monoton, mit Laufzeitausgleich),
+ * [sinceOpenMs] die Zeit seit dem Freigeben, [offsetMs] der Abstand zum ersten Druck.
+ */
+data class PressView(
+    val rank: Int,
+    val playerId: Int,
+    val name: String,
+    val color: String,
+    val offsetMs: Long,
+    val atMs: Long = 0,
+    val sinceOpenMs: Long = 0,
+)
 
-/** Eine Antwort; [offsetMs] ist die Zeit seit dem Freigeben. [correct] ist erst nach dem Auflösen gesetzt. */
+/**
+ * Eine Antwort; [offsetMs] ist die Zeit seit dem Freigeben, [atMs] der Zeitpunkt auf der Uhr des Servers.
+ * [correct] ist erst nach dem Auflösen gesetzt.
+ */
 data class AnswerView(
     val playerId: Int,
     val name: String,
@@ -32,6 +46,7 @@ data class AnswerView(
     val option: Int,
     val offsetMs: Long,
     val correct: Boolean?,
+    val atMs: Long = 0,
 )
 
 /**
@@ -118,11 +133,18 @@ class Game(val roomCode: String) {
             lockOnFirst = lockOnFirst,
             nextMode = nextMode,
             nextOptions = nextOptions,
-            presses = presses.mapIndexed { i, p -> PressView(i + 1, p.player.id, p.player.name, p.player.color, p.atMs - first) },
+            presses = presses.mapIndexed { i, p ->
+                PressView(
+                    i + 1, p.player.id, p.player.name, p.player.color, p.atMs - first,
+                    atMs = p.atMs,
+                    sinceOpenMs = (p.atMs - openedAtMs).coerceAtLeast(0),
+                )
+            },
             answers = answers.map {
                 AnswerView(
                     it.player.id, it.player.name, it.player.color, it.option, (it.atMs - openedAtMs).coerceAtLeast(0),
                     correct = if (revealed && correct != null) it.option == correct else null,
+                    atMs = it.atMs,
                 )
             },
             correct = if (revealed) correct else null,

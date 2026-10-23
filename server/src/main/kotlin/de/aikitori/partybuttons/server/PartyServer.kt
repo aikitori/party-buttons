@@ -86,6 +86,12 @@ class PartyRoom(val roomCode: String = RoomCode.generate()) {
     // monotone Uhr: springt nicht, wenn das Handy die Uhrzeit stellt
     private fun now(): Long = System.nanoTime() / 1_000_000
 
+    /** Abstand zwischen monotoner Uhr und Uhrzeit, einmal beim Start festgehalten. */
+    val wallClockOffsetMs = System.currentTimeMillis() - now()
+
+    /** Zeitpunkt [monotonicMs] aus [PressView.atMs] oder [AnswerView.atMs] als Uhrzeit (Millisekunden seit 1970). */
+    fun wallClock(monotonicMs: Long): Long = monotonicMs + wallClockOffsetMs
+
     internal suspend fun handle(session: DefaultWebSocketServerSession) {
         val conn = ConnectionId(nextConnection.getAndIncrement())
         sessions[conn] = session
@@ -252,7 +258,11 @@ fun main(args: Array<String>): Unit = runBlocking {
         println("Spieler: " + players.joinToString { "${it.id} ${it.name}" + if (it.connected) "" else " (getrennt)" })
         println("Runde ${round.number} ${round.mode} ${round.phase} (nächste: ${round.nextMode}, ${round.nextOptions} Knöpfe; " +
             "Sperre nach erstem: ${round.lockOnFirst}): " +
-            round.presses.joinToString { "${it.rank}. ${it.name} +${it.offsetMs} ms" } +
+            round.presses.joinToString {
+                val clock = java.time.Instant.ofEpochMilli(server.room.wallClock(it.atMs))
+                    .atZone(java.time.ZoneId.systemDefault()).toLocalTime()
+                "${it.rank}. ${it.name} $clock nach ${it.sinceOpenMs} ms +${it.offsetMs} ms"
+            } +
             round.answers.joinToString { "${it.name}=${Rules.optionLabel(it.option)}" + (it.correct?.let { c -> if (c) " ✓" else " ✗" } ?: "") })
     }
 }

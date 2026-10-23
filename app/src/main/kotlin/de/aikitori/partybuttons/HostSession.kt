@@ -34,6 +34,8 @@ sealed interface HostState {
         val urls: List<String>,
         val players: List<PlayerView>,
         val round: RoundView,
+        /** Zum Umrechnen von [de.aikitori.partybuttons.core.PressView.atMs] in die Uhrzeit. */
+        val wallClockOffsetMs: Long,
     ) : HostState
 }
 
@@ -72,7 +74,10 @@ object HostSession {
             }
             val code = running.room.roomCode
             combine(running.room.snapshot, addresses) { snapshot, ips ->
-                HostState.Running(code, ips.map { "http://$it:${running.port}/j/$code" }, snapshot.players, snapshot.round)
+                HostState.Running(
+                    code, ips.map { "http://$it:${running.port}/j/$code" }, snapshot.players, snapshot.round,
+                    running.room.wallClockOffsetMs,
+                )
             }.collect { _state.value = it }
         }
     }

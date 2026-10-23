@@ -1,6 +1,9 @@
 package de.aikitori.partybuttons
 
 import android.os.Bundle
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
@@ -185,7 +188,7 @@ private fun ColumnScope.RunningGame(state: HostState.Running) {
 
     // Mitte: Runde und Ergebnis, darunter die Spieler; scrollt bei vielen Spielern
     LazyColumn(Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        item { RoundResult(state.round, connectedPlayers = state.players.count { it.connected }) }
+        item { RoundResult(state.round, connectedPlayers = state.players.count { it.connected }, state.wallClockOffsetMs) }
         item {
             Text(
                 stringResource(R.string.players_title, state.players.size, Rules.MAX_PLAYERS),
@@ -289,7 +292,7 @@ private fun IconTextButton(symbol: String, description: String, enabled: Boolean
 }
 
 @Composable
-private fun RoundResult(round: RoundView, connectedPlayers: Int) {
+private fun RoundResult(round: RoundView, connectedPlayers: Int, wallClockOffsetMs: Long) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
             stringResource(
@@ -302,20 +305,23 @@ private fun RoundResult(round: RoundView, connectedPlayers: Int) {
             style = MaterialTheme.typography.titleMedium,
         )
         when (round.mode) {
-            Mode.BUZZER -> BuzzerResult(round)
-            Mode.CHOICE -> ChoiceResult(round, connectedPlayers)
+            Mode.BUZZER -> BuzzerResult(round, wallClockOffsetMs)
+            Mode.CHOICE -> ChoiceResult(round, connectedPlayers, wallClockOffsetMs)
         }
     }
 }
 
 @Composable
-private fun BuzzerResult(round: RoundView) {
+private fun BuzzerResult(round: RoundView, wallClockOffsetMs: Long) {
     val first = round.presses.firstOrNull()
     if (first != null) {
         // Platz 1 groß, in der Farbe des Spielers
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             Box(Modifier.size(40.dp).background(parseColor(first.color), CircleShape))
-            Text(first.name, fontSize = 40.sp, fontWeight = FontWeight.Bold)
+            Column {
+                Text(first.name, fontSize = 40.sp, fontWeight = FontWeight.Bold)
+                PressTimes(first.atMs + wallClockOffsetMs, first.sinceOpenMs)
+            }
         }
         if (round.tie) {
             Text(stringResource(R.string.tie), color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold, fontSize = 22.sp)
@@ -324,11 +330,14 @@ private fun BuzzerResult(round: RoundView) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(stringResource(R.string.rank, press.rank), Modifier.width(32.dp))
                 Box(Modifier.size(14.dp).background(parseColor(press.color), CircleShape))
-                Text(press.name, Modifier.weight(1f))
+                Column(Modifier.weight(1f)) {
+                    Text(press.name)
+                    PressTimes(press.atMs + wallClockOffsetMs, press.sinceOpenMs)
+                }
                 Text(
                     stringResource(R.string.offset_ms, press.offsetMs),
                     fontFamily = FontFamily.Monospace,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = FontWeight.Bold,
                 )
             }
         }
@@ -337,8 +346,24 @@ private fun BuzzerResult(round: RoundView) {
     }
 }
 
+/** Uhrzeit des Drucks (geschätzter Moment des Drückens, mit Laufzeitausgleich) und Zeit seit dem Freigeben. */
 @Composable
-private fun ChoiceResult(round: RoundView, connectedPlayers: Int) {
+private fun PressTimes(wallClockMs: Long, sinceOpenMs: Long) {
+    Text(
+        stringResource(R.string.press_times, formatClock(wallClockMs), sinceOpenMs / 1000.0),
+        style = MaterialTheme.typography.bodySmall,
+        fontFamily = FontFamily.Monospace,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
+private val clockFormat = DateTimeFormatter.ofPattern("HH:mm:ss.SSS")
+
+private fun formatClock(wallClockMs: Long): String =
+    Instant.ofEpochMilli(wallClockMs).atZone(ZoneId.systemDefault()).toLocalTime().format(clockFormat)
+
+@Composable
+private fun ChoiceResult(round: RoundView, connectedPlayers: Int, wallClockOffsetMs: Long) {
     if (round.phase == Phase.OPEN) {
         // nur wer, nicht was: sonst könnte man auf dem Host-Bildschirm abschauen
         Text(
@@ -375,12 +400,18 @@ private fun ChoiceResult(round: RoundView, connectedPlayers: Int) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(stringResource(R.string.rank, i + 1), Modifier.width(32.dp))
                 Box(Modifier.size(14.dp).background(parseColor(answer.color), CircleShape))
-                Text(answer.name, Modifier.weight(1f), fontWeight = if (i == 0) FontWeight.Bold else null)
-                Text(
-                    stringResource(R.string.seconds, answer.offsetMs / 1000.0),
-                    fontFamily = FontFamily.Monospace,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                Column(Modifier.weight(1f)) {
+                    Text(answer.name, fontWeight = if (i == 0) FontWeight.Bold else null)
+                    PressTimes(answer.atMs + wallClockOffsetMs, answer.offsetMs)
+                }
+                // Abstand zum schnellsten Richtigen
+                if (i > 0) {
+                    Text(
+                        stringResource(R.string.offset_ms, answer.offsetMs - correct.first().offsetMs),
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
             }
         }
     }

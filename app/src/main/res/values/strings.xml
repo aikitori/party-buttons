@@ -38,7 +38,6 @@
     <string name="reveal_none">Reveal without a correct answer</string>
     <string name="correct_title">Correct, fastest first:</string>
     <string name="nobody_correct">Nobody got it right.</string>
-    <string name="seconds">%1$.1f s</string>
     <string name="notification_channel">Running game</string>
     <string name="notification_title">Game running · code %1$s</string>
     <string name="notification_text">%1$d players connected</string>
@@ -56,4 +55,5 @@
     <string name="help_title">If nobody can join</string>
     <string name="help_text">• Everyone has to be on the same Wi-Fi as this phone.\n• Guest Wi-Fi often blocks devices from seeing each other. Then turn on this phone\'s hotspot and let the others join it.\n• Phones sometimes ignore a Wi-Fi without internet and use mobile data. Then turn off mobile data on that phone.\n• Without the QR code: type the address shown here into the browser. Just the numbers before /j/ are enough; the game code can then be typed in.\n• Keep this app open or in the background; ending the game from the notification closes it for everyone.</string>
     <string name="ok">OK</string>
+    <string name="press_times">%1$s · after %2$.2f s</string>
 </resources>

@@ -57,6 +57,17 @@ class BuzzerTest {
     }
 
     @Test
+    fun `Host sieht Zeitpunkt, Zeit seit dem Freigeben und Abstand zum Ersten`() {
+        game.setLockOnFirst(false)
+        game.openRound(10_000)
+        game.press(anna, 1, 12_300)
+        game.press(ben, 1, 12_384)
+        val (first, second) = game.round().presses
+        assertEquals(listOf(12_300L, 2_300L, 0L), listOf(first.atMs, first.sinceOpenMs, first.offsetMs))
+        assertEquals(listOf(12_384L, 2_384L, 84L), listOf(second.atMs, second.sinceOpenMs, second.offsetMs))
+    }
+
+    @Test
     fun `jeder drückt pro Runde nur einmal`() {
         game.setLockOnFirst(false)
         game.openRound(0)

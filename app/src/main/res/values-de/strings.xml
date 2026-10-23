@@ -38,7 +38,6 @@
     <string name="reveal_none">Ohne richtige Antwort auflösen</string>
     <string name="correct_title">Richtig, die Schnellsten zuerst:</string>
     <string name="nobody_correct">Niemand lag richtig.</string>
-    <string name="seconds">%1$.1f s</string>
     <string name="notification_channel">Laufendes Spiel</string>
     <string name="notification_title">Spiel läuft · Code %1$s</string>
     <string name="notification_text">%1$d Mitspielende verbunden</string>
@@ -56,4 +55,5 @@
     <string name="help_title">Wenn niemand reinkommt</string>
     <string name="help_text">• Alle müssen im selben WLAN sein wie dieses Handy.\n• Gäste-WLANs lassen Geräte oft nicht miteinander reden. Dann hier den Hotspot einschalten und die anderen damit verbinden.\n• Manche Handys nehmen bei einem WLAN ohne Internet lieber mobile Daten. Dann dort die mobilen Daten ausschalten.\n• Ohne QR-Code: die angezeigte Adresse im Browser eintippen. Die Zahlen vor /j/ reichen, den Spielcode kann man dann eingeben.\n• Die App darf im Hintergrund laufen; „Spiel beenden“ in der Benachrichtigung beendet es für alle.</string>
     <string name="ok">OK</string>
+    <string name="press_times">%1$s · nach %2$.2f s</string>
 </resources>
