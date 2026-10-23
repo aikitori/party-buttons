@@ -51,21 +51,40 @@ zwei Drücke weniger als ca. 20 ms Abstand, zeigt der Host „gleichzeitig“ st
 
 ## Protokoll (WebSocket, JSON)
 
-Client → Host: `join {name, token}`, `press {seq}`, `pong {t}`
-Host → Client: `welcome {id, color, state}`, `state {locked, myRank}`, `ping {t}`, `kicked`
+Client → Host: `join {token, name}`, `press {seq}`, `pong {t}`
+Host → Client: `welcome {id, name, color, state}`, `state {locked, myRank}`, `ping {t}`, `kicked`, `replaced`
 
-Das `token` liegt im `localStorage` des Browsers. Lädt jemand die Seite neu oder verliert kurz das WLAN,
-bekommt er denselben Platz wieder.
+## Wiederverbinden: gleicher Spieler nach Abbruch
+
+Pflicht ab M1, nicht erst Feinschliff: Wer die Verbindung verliert (WLAN weg, Bildschirm aus, Seite neu geladen,
+Browser geschlossen), muss beim Wiederkommen derselbe Spieler sein, mit Name, Farbe und Punkten.
+
+- **Spieler-Token im Browser:** Beim ersten Besuch erzeugt die Seite ein zufälliges Token und speichert es im
+  `localStorage`, zusätzlich als Cookie (Ersatz, falls `localStorage` gelöscht oder gesperrt ist; Cookies gelten
+  unabhängig vom Port). Erzeugt mit `crypto.getRandomValues`, denn `crypto.randomUUID` gibt es ohne HTTPS nicht.
+- **Anmelden mit Token:** `join {token, name}`. Kennt der Host das Token, bekommt der Browser den alten Spieler
+  zurück und überspringt die Namenseingabe. Unbekanntes Token: neuer Spieler.
+- **Host vergisst niemanden:** Getrennte Spieler bleiben in der Liste, ausgegraut mit „getrennt“, bis der Host sie
+  entfernt. Drücke während der Trennung gibt es nicht, der Buzzer zeigt „Verbinde neu …“.
+- **Automatisch neu verbinden:** Der Client versucht es nach Abbruch sofort, dann mit wachsendem Abstand
+  (bis 5 s), und sofort wieder, wenn die Seite sichtbar wird (`visibilitychange`) oder das Netz zurück ist (`online`).
+- **Doppelt offen:** Meldet sich dasselbe Token ein zweites Mal (zweiter Tab), gewinnt die neue Verbindung, die
+  alte bekommt `replaced` und zeigt einen Hinweis.
+- **Token verloren** (privater Modus, Browser-Daten gelöscht, anderes Gerät): Der Host kann einen neuen Spieler
+  per „Übernehmen“ mit einem getrennten zusammenlegen, Punkte und Farbe gehen mit.
+- **Gleiche Adresse:** Der `localStorage` hängt an `http://IP:Port`. Der Port ist deshalb fest (8080, nur bei
+  Belegung ein anderer), und die IP bleibt während eines Spiels gleich. Ändert sich die IP doch, hilft das Cookie.
+- **Tests in `core`:** Abbruch und Rückkehr mit Token, zwei Verbindungen mit demselben Token, Übernehmen.
 
 ## Meilensteine
 
 | # | Inhalt | Ergebnis |
 |---|---|---|
 | M0 | Gradle-Projekt (`app`, `core`), Vite-Client, CI baut Debug-APK | leere App lässt sich installieren |
-| M1 | Ktor-Server in der App, liefert Client-Seite, WebSocket-Verbindung, Spielerliste beim Host | Mitspielende tauchen beim Host auf |
+| M1 | Ktor-Server in der App, liefert Client-Seite, WebSocket-Verbindung, Spielerliste beim Host, Spieler-Token und Wiederverbinden | Mitspielende tauchen beim Host auf und bleiben nach Abbruch dieselben |
 | M2 | Buzzer-Logik in `core` mit Tests: Sperren, Reihenfolge, Freigeben | erstes spielbares Quiz |
 | M3 | QR-Code, IP-Ermittlung (WLAN und Hotspot), Vordergrund-Dienst, WifiLock | Alltagstauglich |
-| M4 | Laufzeitausgleich, Töne beim Host, Vibration beim Client, Wiederverbinden | fair und rund |
+| M4 | Laufzeitausgleich, Töne beim Host, Vibration beim Client, „Übernehmen“ beim Host | fair und rund |
 | M5 | Release-Signierung, App-Icon, Hinweise bei Problemen (siehe unten) | APK zum Weitergeben |
 
 Spätere Ideen: Teams mit gemeinsamer Farbe, Antwort-Knöpfe A/B/C/D, Punktestand, mehrere Knöpfe pro Gerät,
