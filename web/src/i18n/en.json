@@ -10,7 +10,7 @@
   "joinedAs": "You're in as",
   "waiting": "Wait for the host to start a round.",
   "full": "The game is full (20 players).",
-  "wrongRoom": "This game doesn't exist (anymore). Scan the QR code on the host again.",
+  "wrongRoom": "This game doesn't exist (anymore). Enter the game code shown on the host.",
   "replaced": "You opened the game in another tab or browser.",
   "replacedButton": "Play here",
   "removed": "The host removed you from the game.",
@@ -22,5 +22,14 @@
   "rankFirst": "You were the fastest!",
   "rankN": "Place {n}",
   "tooLate": "Too late, someone was faster.",
-  "roundOver": "Round over."
+  "roundOver": "Round over.",
+  "codeLabel": "Game code",
+  "codeButton": "Join game",
+  "codeInvalid": "The code has 5 letters or digits.",
+  "chooseNow": "Pick an answer.",
+  "answerSaved": "Answer {x} locked in. Wait for the result.",
+  "rankCorrect": "Correct! Place {n} among the fastest.",
+  "wrongAnswer": "Wrong. The answer was {x}.",
+  "noAnswer": "No answer. The answer was {x}.",
+  "pollOver": "Voting closed."
 }

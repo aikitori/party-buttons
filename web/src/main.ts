@@ -1,12 +1,13 @@
 import { Connection } from "./connection";
 import { apply, onLangChange, setLang, t, type Key, type Lang } from "./i18n";
-import { MAX_NAME_LENGTH, type NameProblem, type Phase, type ServerMessage } from "./protocol";
+import { MAX_NAME_LENGTH, optionLabel, type NameProblem, type RoundState, type ServerMessage } from "./protocol";
 import { getToken, lastName, newToken, rememberName } from "./token";
 
 type View =
   | { kind: "connecting" }
   | { kind: "name"; error: NameProblem | null }
   | { kind: "joined"; name: string; color: string }
+  | { kind: "code" }
   | { kind: "notice"; text: Key; button: Key | null; action: (() => void) | null };
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -16,9 +17,13 @@ let token = getToken();
 let view: View = { kind: "connecting" };
 let online = false;
 
-// Runde, wie der Host sie zuletzt gemeldet hat; pressedRound merkt den eigenen Druck, bis der Host antwortet
-let round = { number: 0, phase: "idle" as Phase, myRank: null as number | null };
+// Runde, wie der Host sie zuletzt gemeldet hat; pressedRound und pending merken den eigenen Druck bzw. die
+// eigene Antwort, bis der Host sie bestätigt
+let round: RoundState = {
+  round: 0, phase: "idle", myRank: null, mode: "buzzer", options: 0, myAnswer: null, correct: null, counts: null,
+};
 let pressedRound = -1;
+let pending: { round: number; option: number } | null = null;
 
 const nameErrors: Record<NameProblem, Key> = { empty: "nameEmpty", tooLong: "nameTooLong", taken: "nameTaken" };
 
@@ -28,7 +33,7 @@ function show(next: View): void {
 }
 
 function render(): void {
-  for (const kind of ["connecting", "name", "joined", "notice"] as const) {
+  for (const kind of ["connecting", "name", "joined", "code", "notice"] as const) {
     $(`view-${kind}`).hidden = view.kind !== kind;
   }
   // Banner nur, wenn man schon drin war und die Verbindung weg ist
@@ -56,8 +61,16 @@ function render(): void {
 }
 
 function renderRound(): void {
+  const choice = round.mode === "choice";
+  $("buzzer").hidden = choice;
+  $("choices").hidden = !choice;
+  if (choice) renderChoices();
+  else renderBuzzer();
+}
+
+function renderBuzzer(): void {
   const buzzer = $<HTMLButtonElement>("buzzer");
-  const pressed = pressedRound === round.number && round.myRank === null;
+  const pressed = pressedRound === round.round && round.myRank === null;
   const canPress = online && round.phase === "open" && round.myRank === null && !pressed;
   buzzer.disabled = !canPress;
   buzzer.classList.toggle("open", canPress);
@@ -69,16 +82,66 @@ function renderRound(): void {
   else if (round.myRank !== null) status = t("rankN", { n: round.myRank });
   else if (pressed) status = t("pressed");
   else if (round.phase === "open") status = t("go");
-  else if (round.phase === "locked") status = t(pressedRound === round.number ? "tooLate" : "roundOver");
+  else if (round.phase === "locked") status = t(pressedRound === round.round ? "tooLate" : "roundOver");
   else status = t("waiting");
   $("round-status").textContent = status;
 }
 
+function renderChoices(): void {
+  const container = $("choices");
+  // Knöpfe nur neu anlegen, wenn sich die Anzahl ändert
+  if (container.childElementCount !== round.options) {
+    container.replaceChildren(
+      ...Array.from({ length: round.options }, (_, option) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "choice";
+        button.addEventListener("pointerdown", (event) => answer(event, option));
+        button.addEventListener("click", (event) => answer(event, option));
+        button.append(Object.assign(document.createElement("span"), { className: "letter", textContent: optionLabel(option) }));
+        button.append(Object.assign(document.createElement("span"), { className: "count" }));
+        return button;
+      }),
+    );
+  }
+  const mine = round.myAnswer ?? (pending?.round === round.round ? pending.option : null);
+  const revealed = round.phase === "locked";
+  const canAnswer = online && round.phase === "open" && mine === null;
+  container.querySelectorAll<HTMLButtonElement>(".choice").forEach((button, option) => {
+    button.disabled = !canAnswer;
+    button.classList.toggle("mine", option === mine);
+    button.classList.toggle("correct", revealed && option === round.correct);
+    button.classList.toggle("wrong", revealed && round.correct !== null && option === mine && option !== round.correct);
+    const count = button.querySelector(".count")!;
+    count.textContent = revealed && round.counts ? String(round.counts[option] ?? 0) : "";
+  });
+
+  let status: string;
+  const right = round.correct === null ? "" : optionLabel(round.correct);
+  if (!revealed) {
+    status = round.phase === "open" ? (mine === null ? t("chooseNow") : t("answerSaved", { x: optionLabel(mine) })) : t("waiting");
+  } else if (round.correct === null) status = t("pollOver");
+  else if (round.myRank !== null) status = t("rankCorrect", { n: round.myRank });
+  else if (mine !== null) status = t("wrongAnswer", { x: right });
+  else status = t("noAnswer", { x: right });
+  $("round-status").textContent = status;
+}
+
+function answer(event: Event, option: number): void {
+  event.preventDefault();
+  if (round.mode !== "choice" || round.phase !== "open" || round.myAnswer !== null || !online) return;
+  if (pending?.round === round.round) return;
+  pending = { round: round.round, option };
+  connection.send({ type: "answer", round: round.round, option });
+  navigator.vibrate?.(40);
+  renderRound();
+}
+
 function press(event: Event): void {
   event.preventDefault();
-  if (round.phase !== "open" || round.myRank !== null || pressedRound === round.number || !online) return;
-  pressedRound = round.number;
-  connection.send({ type: "press", round: round.number });
+  if (round.mode !== "buzzer" || round.phase !== "open" || round.myRank !== null || pressedRound === round.round || !online) return;
+  pressedRound = round.round;
+  connection.send({ type: "press", round: round.round });
   navigator.vibrate?.(40);
   renderRound();
 }
@@ -86,7 +149,7 @@ function press(event: Event): void {
 function handle(message: ServerMessage): void {
   switch (message.type) {
     case "state":
-      round = { number: message.round, phase: message.phase, myRank: message.myRank };
+      round = message;
       if (view.kind === "joined") renderRound();
       break;
     case "welcome":
@@ -105,7 +168,7 @@ function handle(message: ServerMessage): void {
       break;
     case "wrongRoom":
       connection.stop();
-      show({ kind: "notice", text: "wrongRoom", button: null, action: null });
+      showCodeForm();
       break;
     case "replaced":
       // nicht selbst neu verbinden, sonst werfen sich zwei Tabs gegenseitig raus
@@ -130,6 +193,13 @@ function showNameForm(error: NameProblem | null): void {
   const input = $<HTMLInputElement>("name");
   if (!wasShown && input.value === "") input.value = lastName();
   input.focus();
+}
+
+// falscher oder fehlender Code: selbst eintippen statt QR-Code scannen
+function showCodeForm(): void {
+  show({ kind: "code" });
+  $("code-error").hidden = true;
+  $<HTMLInputElement>("code").focus();
 }
 
 function restart(): void {
@@ -167,6 +237,17 @@ const buzzer = $<HTMLButtonElement>("buzzer");
 buzzer.addEventListener("pointerdown", press);
 buzzer.addEventListener("click", press); // Tastatur, Bildschirmleser
 
+$<HTMLFormElement>("view-code").addEventListener("submit", (event) => {
+  event.preventDefault();
+  const code = $<HTMLInputElement>("code").value.trim().toUpperCase();
+  if (!/^[A-Z0-9]{5}$/.test(code)) {
+    $("code-error").hidden = false;
+    return;
+  }
+  // neue Adresse, damit Neuladen und Lesezeichen den richtigen Code haben; Token und Name bleiben im Speicher
+  location.assign(`/j/${code}`);
+});
+
 $("notice-button").addEventListener("click", () => {
   if (view.kind === "notice") view.action?.();
 });
@@ -178,7 +259,7 @@ onLangChange(render);
 
 apply();
 if (roomCode === null) {
-  show({ kind: "notice", text: "wrongRoom", button: null, action: null });
+  showCodeForm();
 } else {
   render();
   connection.start();

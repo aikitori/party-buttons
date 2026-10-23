@@ -1,5 +1,6 @@
 package de.aikitori.partybuttons.server
 
+import de.aikitori.partybuttons.core.Mode
 import de.aikitori.partybuttons.core.Protocol
 import de.aikitori.partybuttons.core.ServerMessage
 import io.ktor.client.HttpClient
@@ -97,11 +98,28 @@ class PartyServerTest {
             assertEquals("welcome", receiveType())
             assertEquals("state", receiveType())
             room.openRound()
-            assertEquals("""{"type":"state","round":1,"phase":"open","myRank":null}""", receiveText())
+            assertEquals("""{"type":"state","round":1,"phase":"open","myRank":null,"mode":"buzzer","options":0,"myAnswer":null,"correct":null,"counts":null}""", receiveText())
             sendJson("""{"type":"press","round":1}""")
-            assertEquals("""{"type":"state","round":1,"phase":"locked","myRank":1}""", receiveText())
+            assertEquals("""{"type":"state","round":1,"phase":"locked","myRank":1,"mode":"buzzer","options":0,"myAnswer":null,"correct":null,"counts":null}""", receiveText())
         }
         assertEquals(listOf("Anna"), room.snapshot.value.round.presses.map { it.name })
+    }
+
+    @Test
+    fun `Antworten über den WebSocket`() = test { client ->
+        client.webSocket("/ws/ABCDE") {
+            sendJson("""{"type":"join","token":"$token","name":"Anna"}""")
+            assertEquals("welcome", receiveType())
+            assertEquals("state", receiveType())
+            room.setMode(Mode.CHOICE)
+            room.setOptions(3)
+            room.openRound()
+            assertEquals("""{"type":"state","round":1,"phase":"open","myRank":null,"mode":"choice","options":3,"myAnswer":null,"correct":null,"counts":null}""", receiveText())
+            sendJson("""{"type":"answer","round":1,"option":2}""")
+            assertEquals("""{"type":"state","round":1,"phase":"open","myRank":null,"mode":"choice","options":3,"myAnswer":2,"correct":null,"counts":null}""", receiveText())
+            room.reveal(2)
+            assertEquals("""{"type":"state","round":1,"phase":"locked","myRank":1,"mode":"choice","options":3,"myAnswer":2,"correct":2,"counts":[0,0,1]}""", receiveText())
+        }
     }
 
     private suspend fun DefaultClientWebSocketSession.receiveText(): String =

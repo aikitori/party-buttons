@@ -123,6 +123,13 @@ h1.player::before {
   color: var(--fg);
 }
 
+.code-input {
+  text-transform: uppercase;
+  letter-spacing: 0.3em;
+  text-align: center;
+  font-family: ui-monospace, monospace;
+}
+
 .error {
   margin: 0;
   color: var(--accent);
@@ -182,6 +189,67 @@ h1.player::before {
   opacity: 1;
   background: #e0a800;
   color: #1b1b1f;
+}
+
+.choices {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  width: 100%;
+}
+
+.choices[hidden] {
+  display: none;
+}
+
+.choice {
+  position: relative;
+  min-height: 96px;
+  border: 0;
+  border-radius: 16px;
+  background: var(--chip);
+  color: var(--fg);
+  font: inherit;
+  touch-action: manipulation;
+  user-select: none;
+}
+
+.choice .letter {
+  font-size: 2.5rem;
+  font-weight: 700;
+}
+
+.choice .count {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.choice:not(:disabled):active {
+  transform: scale(0.97);
+}
+
+.choice:disabled {
+  opacity: 0.45;
+}
+
+.choice.mine {
+  opacity: 1;
+  outline: 4px solid var(--fg);
+  outline-offset: -4px;
+}
+
+.choice.correct {
+  opacity: 1;
+  background: #2e8b3a;
+  color: #fff;
+}
+
+.choice.wrong {
+  background: var(--accent);
+  color: #fff;
 }
 
 .round-status {

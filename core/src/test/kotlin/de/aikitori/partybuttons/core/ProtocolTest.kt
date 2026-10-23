@@ -13,13 +13,20 @@ class ProtocolTest {
         assertEquals("""{"type":"needName"}""", Protocol.encode(ServerMessage.NeedName))
         assertEquals("""{"type":"nameRejected","reason":"tooLong"}""",
             Protocol.encode(ServerMessage.NameRejected(NameProblem.TOO_LONG)))
-        assertEquals("""{"type":"state","round":2,"phase":"locked","myRank":null}""",
-            Protocol.encode(ServerMessage.State(2, Phase.LOCKED, null)))
+        assertEquals(
+            """{"type":"state","round":2,"phase":"locked","myRank":null,"mode":"buzzer","options":0,"myAnswer":null,"correct":null,"counts":null}""",
+            Protocol.encode(ServerMessage.State(2, Phase.LOCKED, null)),
+        )
+        assertEquals(
+            """{"type":"state","round":3,"phase":"locked","myRank":1,"mode":"choice","options":3,"myAnswer":2,"correct":2,"counts":[0,1,4]}""",
+            Protocol.encode(ServerMessage.State(3, Phase.LOCKED, 1, Mode.CHOICE, 3, 2, 2, listOf(0, 1, 4))),
+        )
     }
 
     @Test
     fun `Nachrichten vom Browser`() {
         assertEquals(ClientMessage.Hello("x".repeat(22)), Protocol.decodeClient("""{"type":"hello","token":"${"x".repeat(22)}"}"""))
+        assertEquals(ClientMessage.Answer(4, 2), Protocol.decodeClient("""{"type":"answer","round":4,"option":2}"""))
         assertEquals(ClientMessage.Press(4), Protocol.decodeClient("""{"type":"press","round":4}"""))
         assertEquals(ClientMessage.Join("t", "Anna"), Protocol.decodeClient("""{"type":"join","token":"t","name":"Anna","extra":1}"""))
     }

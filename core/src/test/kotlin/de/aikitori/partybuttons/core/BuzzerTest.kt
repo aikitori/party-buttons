@@ -31,7 +31,7 @@ class BuzzerTest {
 
     @Test
     fun `Freigeben schickt allen die offene Runde`() {
-        val effects = game.openRound()
+        val effects = game.openRound(0)
         for (conn in listOf(anna, ben, carla)) {
             assertEquals(ServerMessage.State(1, Phase.OPEN, null), stateOf(effects, conn))
         }
@@ -39,7 +39,7 @@ class BuzzerTest {
 
     @Test
     fun `wer zuerst drückt, gewinnt und sperrt alle`() {
-        game.openRound()
+        game.openRound(0)
         val effects = game.press(ben, 1, 1000)
         assertEquals(ServerMessage.State(1, Phase.LOCKED, 1), stateOf(effects, ben))
         assertEquals(ServerMessage.State(1, Phase.LOCKED, null), stateOf(effects, anna))
@@ -48,7 +48,7 @@ class BuzzerTest {
 
     @Test
     fun `Drücke kurz nach dem Sperren zählen noch für die Reihenfolge`() {
-        game.openRound()
+        game.openRound(0)
         game.press(ben, 1, 1000)
         game.press(anna, 1, 1084)
         game.press(carla, 1, 1000 + Rules.LATE_PRESS_WINDOW_MS + 1) // zu spät
@@ -59,7 +59,7 @@ class BuzzerTest {
     @Test
     fun `jeder drückt pro Runde nur einmal`() {
         game.setLockOnFirst(false)
-        game.openRound()
+        game.openRound(0)
         game.press(anna, 1, 1000)
         assertTrue(game.press(anna, 1, 1001).isEmpty())
         assertEquals(1, game.round().presses.size)
@@ -68,7 +68,7 @@ class BuzzerTest {
     @Test
     fun `ohne Sperre nach dem ersten drücken alle, bis der Host sperrt`() {
         game.setLockOnFirst(false)
-        game.openRound()
+        game.openRound(0)
         game.press(carla, 1, 1000)
         assertEquals(Phase.OPEN, game.round().phase)
         game.press(anna, 1, 1500)
@@ -81,9 +81,9 @@ class BuzzerTest {
 
     @Test
     fun `Druck für eine alte Runde zählt nicht`() {
-        game.openRound()
+        game.openRound(0)
         game.press(anna, 1, 1000)
-        game.openRound()
+        game.openRound(0)
         assertTrue(game.press(ben, 1, 1100).isEmpty())
         assertEquals(2, game.round().number)
         assertTrue(game.round().presses.isEmpty())
@@ -91,16 +91,16 @@ class BuzzerTest {
 
     @Test
     fun `neue Runde löscht das Ergebnis`() {
-        game.openRound()
+        game.openRound(0)
         game.press(anna, 1, 1000)
-        val effects = game.openRound()
+        val effects = game.openRound(0)
         assertEquals(ServerMessage.State(2, Phase.OPEN, null), stateOf(effects, anna))
         assertTrue(game.round().presses.isEmpty())
     }
 
     @Test
     fun `wer wiederkommt, erfährt seinen Platz`() {
-        game.openRound()
+        game.openRound(0)
         game.press(anna, 1, 1000)
         game.disconnected(anna)
         val effects = game.hello(ConnectionId(9), "a".repeat(22))
@@ -110,7 +110,7 @@ class BuzzerTest {
     @Test
     fun `entfernter Spieler verschwindet aus der Reihenfolge`() {
         game.setLockOnFirst(false)
-        game.openRound()
+        game.openRound(0)
         game.press(anna, 1, 1000)
         game.press(ben, 1, 1200)
         val effects = game.remove(1)

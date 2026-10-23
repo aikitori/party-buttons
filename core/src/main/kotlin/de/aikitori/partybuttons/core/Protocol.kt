@@ -24,6 +24,11 @@ sealed interface ClientMessage {
     @Serializable
     @SerialName("press")
     data class Press(val round: Int) : ClientMessage
+
+    /** Antwort [option] (0 = A) in einer Runde „Antworten“. Nur eine pro Runde, danach steht sie fest. */
+    @Serializable
+    @SerialName("answer")
+    data class Answer(val round: Int, val option: Int) : ClientMessage
 }
 
 @Serializable
@@ -33,10 +38,24 @@ sealed interface ServerMessage {
     @SerialName("welcome")
     data class Welcome(val id: Int, val name: String, val color: String) : ServerMessage
 
-    /** Stand der Runde für diesen Spieler; kommt nach [Welcome] und bei jeder Änderung. */
+    /**
+     * Stand der Runde für diesen Spieler; kommt nach [Welcome] und bei jeder Änderung.
+     * Bei [Mode.CHOICE]: [myAnswer] ist die eigene Antwort; nach dem Auflösen ([Phase.LOCKED]) kommen [correct]
+     * (null = ohne richtige Antwort, z. B. Umfrage), [counts] (Antworten pro Knopf) und [myRank]
+     * (Platz unter den Richtigen, nach Zeit).
+     */
     @Serializable
     @SerialName("state")
-    data class State(val round: Int, val phase: Phase, val myRank: Int?) : ServerMessage
+    data class State(
+        val round: Int,
+        val phase: Phase,
+        val myRank: Int?,
+        val mode: Mode = Mode.BUZZER,
+        val options: Int = 0,
+        val myAnswer: Int? = null,
+        val correct: Int? = null,
+        val counts: List<Int>? = null,
+    ) : ServerMessage
 
     /** Token unbekannt, die Seite fragt nach dem Namen. */
     @Serializable
@@ -74,6 +93,13 @@ sealed interface ServerMessage {
     data object Removed : ServerMessage
 }
 
+/** Rundenart, siehe PLAN.md. */
+@Serializable
+enum class Mode {
+    @SerialName("buzzer") BUZZER,
+    @SerialName("choice") CHOICE,
+}
+
 /** Zustand der Runde. */
 @Serializable
 enum class Phase {
@@ -83,7 +109,7 @@ enum class Phase {
     /** Buzzer frei. */
     @SerialName("open") OPEN,
 
-    /** Runde vorbei, Ergebnis steht. */
+    /** Runde vorbei, Ergebnis steht (bei Antworten: aufgelöst). */
     @SerialName("locked") LOCKED,
 }
 

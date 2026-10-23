@@ -4,6 +4,7 @@ import de.aikitori.partybuttons.core.ClientMessage
 import de.aikitori.partybuttons.core.ConnectionId
 import de.aikitori.partybuttons.core.Effect
 import de.aikitori.partybuttons.core.Game
+import de.aikitori.partybuttons.core.Mode
 import de.aikitori.partybuttons.core.PlayerView
 import de.aikitori.partybuttons.core.Protocol
 import de.aikitori.partybuttons.core.RoomCode
@@ -65,7 +66,14 @@ class PartyRoom(val roomCode: String = RoomCode.generate()) {
 
     suspend fun removePlayer(id: Int) = update { game.remove(id) }
 
-    suspend fun openRound() = update { game.openRound() }
+    suspend fun openRound() = update { game.openRound(now()) }
+
+    suspend fun setMode(mode: Mode) = update { game.setMode(mode) }
+
+    suspend fun setOptions(count: Int) = update { game.setOptions(count) }
+
+    /** Runde „Antworten“ auflösen; null = ohne richtige Antwort. */
+    suspend fun reveal(correct: Int?) = update { game.reveal(correct) }
 
     suspend fun lockRound() = update { game.lockRound(now()) }
 
@@ -87,6 +95,10 @@ class PartyRoom(val roomCode: String = RoomCode.generate()) {
                         // Zeit sofort beim Empfang nehmen, nicht erst, wenn das Lock frei ist
                         val at = now()
                         update { game.press(conn, message.round, at) }
+                    }
+                    is ClientMessage.Answer -> {
+                        val at = now()
+                        update { game.answer(conn, message.round, message.option, at) }
                     }
                     null -> Unit
                 }
@@ -201,19 +213,28 @@ fun main(args: Array<String>): Unit = runBlocking {
     val server = PartyServer(DirectoryStaticFiles(dir))
     val port = server.start()
     println("Party Buttons: http://localhost:$port/j/${server.room.roomCode}")
-    println("Befehle: o = Buzzer freigeben, l = sperren, f = Sperre nach erstem Druck an/aus")
+    println("Befehle: o = Runde starten, l = sperren, f = Sperre nach erstem Druck an/aus,")
+    println("         m = Buzzer/Antworten umschalten, n4 = vier Knöpfe, rB = auflösen mit B richtig, r- = ohne richtige")
     launch(kotlinx.coroutines.Dispatchers.IO) {
         while (true) {
-            when (readlnOrNull()?.trim() ?: break) {
-                "o" -> server.room.openRound()
-                "l" -> server.room.lockRound()
-                "f" -> server.room.setLockOnFirst(!server.room.snapshot.value.round.lockOnFirst)
+            val line = readlnOrNull()?.trim() ?: break
+            val round = server.room.snapshot.value.round
+            when {
+                line == "o" -> server.room.openRound()
+                line == "l" -> server.room.lockRound()
+                line == "f" -> server.room.setLockOnFirst(!round.lockOnFirst)
+                line == "m" -> server.room.setMode(if (round.nextMode == Mode.BUZZER) Mode.CHOICE else Mode.BUZZER)
+                line.startsWith("n") -> line.drop(1).toIntOrNull()?.let { server.room.setOptions(it) }
+                line == "r-" -> server.room.reveal(null)
+                line.startsWith("r") && line.length == 2 -> server.room.reveal(line[1].uppercaseChar() - 'A')
             }
         }
     }
     server.room.snapshot.collect { (players, round) ->
         println("Spieler: " + players.joinToString { "${it.id} ${it.name}" + if (it.connected) "" else " (getrennt)" })
-        println("Runde ${round.number} ${round.phase} (Sperre nach erstem: ${round.lockOnFirst}): " +
-            round.presses.joinToString { "${it.rank}. ${it.name} +${it.offsetMs} ms" })
+        println("Runde ${round.number} ${round.mode} ${round.phase} (nächste: ${round.nextMode}, ${round.nextOptions} Knöpfe; " +
+            "Sperre nach erstem: ${round.lockOnFirst}): " +
+            round.presses.joinToString { "${it.rank}. ${it.name} +${it.offsetMs} ms" } +
+            round.answers.joinToString { "${it.name}=${Rules.optionLabel(it.option)}" + (it.correct?.let { c -> if (c) " ✓" else " ✗" } ?: "") })
     }
 }

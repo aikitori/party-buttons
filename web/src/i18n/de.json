@@ -10,7 +10,7 @@
   "joinedAs": "Du spielst mit als",
   "waiting": "Warte, bis der Host eine Runde startet.",
   "full": "Das Spiel ist voll (20 Mitspielende).",
-  "wrongRoom": "Dieses Spiel gibt es nicht (mehr). Scanne den QR-Code am Host neu.",
+  "wrongRoom": "Dieses Spiel gibt es nicht (mehr). Gib den Spielcode vom Host ein.",
   "replaced": "Du hast das Spiel in einem anderen Tab oder Browser geöffnet.",
   "replacedButton": "Hier weiterspielen",
   "removed": "Der Host hat dich aus dem Spiel genommen.",
@@ -22,5 +22,14 @@
   "rankFirst": "Du warst am schnellsten!",
   "rankN": "Platz {n}",
   "tooLate": "Zu spät, jemand war schneller.",
-  "roundOver": "Runde vorbei."
+  "roundOver": "Runde vorbei.",
+  "codeLabel": "Spielcode",
+  "codeButton": "Zum Spiel",
+  "codeInvalid": "Der Code hat 5 Buchstaben oder Ziffern.",
+  "chooseNow": "Wähle eine Antwort.",
+  "answerSaved": "Antwort {x} abgegeben. Warte auf die Auflösung.",
+  "rankCorrect": "Richtig! Platz {n} der Schnellsten.",
+  "wrongAnswer": "Leider falsch. Richtig war {x}.",
+  "noAnswer": "Keine Antwort. Richtig war {x}.",
+  "pollOver": "Abstimmung beendet."
 }

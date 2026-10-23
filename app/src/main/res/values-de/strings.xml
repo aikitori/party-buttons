@@ -28,4 +28,15 @@
     <string name="offset_ms">+%1$d ms</string>
     <string name="nobody_pressed">Niemand hat gedrückt.</string>
     <string name="rank">%1$d.</string>
+    <string name="mode_buzzer">Buzzer</string>
+    <string name="mode_choice">Antworten</string>
+    <string name="options_count">Knöpfe: %1$d</string>
+    <string name="fewer_options">Weniger Knöpfe</string>
+    <string name="more_options">Mehr Knöpfe</string>
+    <string name="answered_count">%1$d von %2$d haben geantwortet</string>
+    <string name="reveal_hint">Richtige Antwort antippen zum Auflösen:</string>
+    <string name="reveal_none">Ohne richtige Antwort auflösen</string>
+    <string name="correct_title">Richtig, die Schnellsten zuerst:</string>
+    <string name="nobody_correct">Niemand lag richtig.</string>
+    <string name="seconds">%1$.1f s</string>
 </resources>

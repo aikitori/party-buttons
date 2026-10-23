@@ -12,6 +12,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.height
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import de.aikitori.partybuttons.core.Mode
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -114,7 +121,7 @@ private fun ColumnScope.RunningGame(state: HostState.Running, model: HostViewMod
 
     // Mitte: Runde und Ergebnis, darunter die Spieler; scrollt bei vielen Spielern
     LazyColumn(Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        item { RoundResult(state.round) }
+        item { RoundResult(state.round, connectedPlayers = state.players.count { it.connected }) }
         item {
             Text(
                 stringResource(R.string.players_title, state.players.size, Rules.MAX_PLAYERS),
@@ -129,58 +136,178 @@ private fun ColumnScope.RunningGame(state: HostState.Running, model: HostViewMod
     }
 
     // unten: Steuerung
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Switch(checked = state.round.lockOnFirst, onCheckedChange = model::setLockOnFirst)
-        Text(stringResource(R.string.lock_on_first), Modifier.padding(start = 12.dp))
-    }
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Button(onClick = model::openRound, Modifier.weight(1f)) {
-            Text(stringResource(if (state.round.number == 0) R.string.open_round else R.string.next_round))
-        }
-        if (state.round.phase == Phase.OPEN) {
-            FilledTonalButton(onClick = model::lockRound, Modifier.weight(1f)) { Text(stringResource(R.string.lock_round)) }
-        }
-    }
+    Controls(state, model)
     TextButton(onClick = model::stop, Modifier.fillMaxWidth()) { Text(stringResource(R.string.stop_game)) }
 }
 
 @Composable
-private fun RoundResult(round: RoundView) {
+private fun Controls(state: HostState.Running, model: HostViewModel) {
+    val round = state.round
+    // Einstellungen für die nächste Runde
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FilterChip(
+            selected = round.nextMode == Mode.BUZZER,
+            onClick = { model.setMode(Mode.BUZZER) },
+            label = { Text(stringResource(R.string.mode_buzzer)) },
+        )
+        FilterChip(
+            selected = round.nextMode == Mode.CHOICE,
+            onClick = { model.setMode(Mode.CHOICE) },
+            label = { Text(stringResource(R.string.mode_choice)) },
+        )
+        if (round.nextMode == Mode.CHOICE) {
+            Spacer(Modifier.weight(1f))
+            OptionsStepper(round.nextOptions, model::setOptions)
+        }
+    }
+    if (round.nextMode == Mode.BUZZER) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Switch(checked = round.lockOnFirst, onCheckedChange = model::setLockOnFirst)
+            Text(stringResource(R.string.lock_on_first), Modifier.padding(start = 12.dp))
+        }
+    }
+
+    // Auflösen einer laufenden Runde „Antworten“
+    if (round.phase == Phase.OPEN && round.mode == Mode.CHOICE) {
+        Text(stringResource(R.string.reveal_hint), style = MaterialTheme.typography.bodySmall)
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            for (option in 0 until round.options) {
+                FilledTonalButton(
+                    onClick = { model.reveal(option) },
+                    Modifier.weight(1f),
+                    contentPadding = PaddingValues(0.dp),
+                ) { Text(Rules.optionLabel(option), fontWeight = FontWeight.Bold) }
+            }
+        }
+        TextButton(onClick = { model.reveal(null) }) { Text(stringResource(R.string.reveal_none)) }
+    }
+
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Button(onClick = model::openRound, Modifier.weight(1f)) {
+            Text(stringResource(if (round.number == 0) R.string.open_round else R.string.next_round))
+        }
+        if (round.phase == Phase.OPEN && round.mode == Mode.BUZZER) {
+            FilledTonalButton(onClick = model::lockRound, Modifier.weight(1f)) { Text(stringResource(R.string.lock_round)) }
+        }
+    }
+}
+
+@Composable
+private fun OptionsStepper(count: Int, onChange: (Int) -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        IconTextButton("−", stringResource(R.string.fewer_options), enabled = count > Rules.ANSWER_OPTIONS.first) {
+            onChange(count - 1)
+        }
+        Text(stringResource(R.string.options_count, count))
+        IconTextButton("+", stringResource(R.string.more_options), enabled = count < Rules.ANSWER_OPTIONS.last) {
+            onChange(count + 1)
+        }
+    }
+}
+
+@Composable
+private fun IconTextButton(symbol: String, description: String, enabled: Boolean, onClick: () -> Unit) {
+    TextButton(onClick = onClick, enabled = enabled, modifier = Modifier.semantics { contentDescription = description }) {
+        Text(symbol, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+    }
+}
+
+@Composable
+private fun RoundResult(round: RoundView, connectedPlayers: Int) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
             stringResource(
                 when (round.phase) {
                     Phase.IDLE -> R.string.phase_idle
-                    Phase.OPEN -> R.string.phase_open
-                    Phase.LOCKED -> R.string.phase_locked
+                    Phase.OPEN -> if (round.mode == Mode.CHOICE) R.string.mode_choice else R.string.phase_open
+                    Phase.LOCKED -> if (round.mode == Mode.CHOICE) R.string.mode_choice else R.string.phase_locked
                 },
             ),
             style = MaterialTheme.typography.titleMedium,
         )
-        val first = round.presses.firstOrNull()
-        if (first != null) {
-            // Platz 1 groß, in der Farbe des Spielers
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                Box(Modifier.size(40.dp).background(parseColor(first.color), CircleShape))
-                Text(first.name, fontSize = 40.sp, fontWeight = FontWeight.Bold)
-            }
-            for (press in round.presses.drop(1)) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(stringResource(R.string.rank, press.rank), Modifier.width(32.dp))
-                    Box(Modifier.size(14.dp).background(parseColor(press.color), CircleShape))
-                    Text(press.name, Modifier.weight(1f))
-                    Text(
-                        stringResource(R.string.offset_ms, press.offsetMs),
-                        fontFamily = FontFamily.Monospace,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-        } else if (round.phase == Phase.LOCKED) {
-            Text(stringResource(R.string.nobody_pressed), color = MaterialTheme.colorScheme.onSurfaceVariant)
+        when (round.mode) {
+            Mode.BUZZER -> BuzzerResult(round)
+            Mode.CHOICE -> ChoiceResult(round, connectedPlayers)
         }
     }
 }
+
+@Composable
+private fun BuzzerResult(round: RoundView) {
+    val first = round.presses.firstOrNull()
+    if (first != null) {
+        // Platz 1 groß, in der Farbe des Spielers
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            Box(Modifier.size(40.dp).background(parseColor(first.color), CircleShape))
+            Text(first.name, fontSize = 40.sp, fontWeight = FontWeight.Bold)
+        }
+        for (press in round.presses.drop(1)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(stringResource(R.string.rank, press.rank), Modifier.width(32.dp))
+                Box(Modifier.size(14.dp).background(parseColor(press.color), CircleShape))
+                Text(press.name, Modifier.weight(1f))
+                Text(
+                    stringResource(R.string.offset_ms, press.offsetMs),
+                    fontFamily = FontFamily.Monospace,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    } else if (round.phase == Phase.LOCKED) {
+        Text(stringResource(R.string.nobody_pressed), color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun ChoiceResult(round: RoundView, connectedPlayers: Int) {
+    if (round.phase == Phase.OPEN) {
+        // nur wer, nicht was: sonst könnte man auf dem Host-Bildschirm abschauen
+        Text(
+            stringResource(R.string.answered_count, round.answers.size, maxOf(connectedPlayers, round.answers.size)),
+            fontSize = 28.sp,
+            fontWeight = FontWeight.Bold,
+        )
+        Text(round.answers.joinToString(", ") { it.name }, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        return
+    }
+    // aufgelöst: Verteilung, richtige Antwort grün
+    val counts = round.counts
+    val max = counts.maxOrNull()?.coerceAtLeast(1) ?: 1
+    for (option in 0 until round.options) {
+        val isCorrect = option == round.correct
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(Rules.optionLabel(option), Modifier.width(24.dp), fontWeight = FontWeight.Bold)
+            Box(Modifier.weight(1f).height(24.dp)) {
+                Box(
+                    Modifier.fillMaxHeight().fillMaxWidth(counts[option].toFloat() / max)
+                        .background(if (isCorrect) CorrectGreen else MaterialTheme.colorScheme.surfaceVariant),
+                )
+            }
+            Text(counts[option].toString(), Modifier.width(32.dp), fontFamily = FontFamily.Monospace)
+        }
+    }
+    if (round.correct != null) {
+        val correct = round.answers.filter { it.correct == true }.sortedBy { it.offsetMs }
+        Text(stringResource(R.string.correct_title), style = MaterialTheme.typography.titleSmall)
+        if (correct.isEmpty()) {
+            Text(stringResource(R.string.nobody_correct), color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        correct.forEachIndexed { i, answer ->
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(stringResource(R.string.rank, i + 1), Modifier.width(32.dp))
+                Box(Modifier.size(14.dp).background(parseColor(answer.color), CircleShape))
+                Text(answer.name, Modifier.weight(1f), fontWeight = if (i == 0) FontWeight.Bold else null)
+                Text(
+                    stringResource(R.string.seconds, answer.offsetMs / 1000.0),
+                    fontFamily = FontFamily.Monospace,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+private val CorrectGreen = Color(0xFF2E8B3A)
 
 @Composable
 private fun PlayerRow(player: PlayerView, onRemove: (Int) -> Unit) {

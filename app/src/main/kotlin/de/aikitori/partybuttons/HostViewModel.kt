@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.res.AssetManager
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import de.aikitori.partybuttons.core.Mode
 import de.aikitori.partybuttons.core.PlayerView
 import de.aikitori.partybuttons.core.RoundView
 import de.aikitori.partybuttons.server.PartyRoom
@@ -79,6 +80,12 @@ class HostViewModel(application: Application) : AndroidViewModel(application) {
     fun lockRound() = withRoom { it.lockRound() }
 
     fun setLockOnFirst(value: Boolean) = withRoom { it.setLockOnFirst(value) }
+
+    fun setMode(mode: Mode) = withRoom { it.setMode(mode) }
+
+    fun setOptions(count: Int) = withRoom { it.setOptions(count) }
+
+    fun reveal(correct: Int?) = withRoom { it.reveal(correct) }
 
     private fun withRoom(action: suspend (PartyRoom) -> Unit) {
         val running = server ?: return

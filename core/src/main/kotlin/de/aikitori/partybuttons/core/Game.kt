@@ -18,8 +18,35 @@ data class PlayerView(val id: Int, val name: String, val color: String, val conn
 /** Ein Druck in der Reihenfolge; [offsetMs] ist der Abstand zum ersten Druck. */
 data class PressView(val rank: Int, val playerId: Int, val name: String, val color: String, val offsetMs: Long)
 
-/** So sieht der Host die Runde. */
-data class RoundView(val number: Int, val phase: Phase, val lockOnFirst: Boolean, val presses: List<PressView>)
+/** Eine Antwort; [offsetMs] ist die Zeit seit dem Freigeben. [correct] ist erst nach dem Auflösen gesetzt. */
+data class AnswerView(
+    val playerId: Int,
+    val name: String,
+    val color: String,
+    val option: Int,
+    val offsetMs: Long,
+    val correct: Boolean?,
+)
+
+/**
+ * So sieht der Host die Runde. [mode] und [options] gelten für die laufende Runde; [nextMode] und [nextOptions]
+ * sind die Einstellungen für die nächste. [answers] stehen in der Reihenfolge des Eingangs.
+ */
+data class RoundView(
+    val number: Int,
+    val phase: Phase,
+    val mode: Mode,
+    val options: Int,
+    val lockOnFirst: Boolean,
+    val nextMode: Mode,
+    val nextOptions: Int,
+    val presses: List<PressView>,
+    val answers: List<AnswerView>,
+    val correct: Int?,
+) {
+    /** Antworten pro Knopf (Index = Knopf). */
+    val counts: List<Int> get() = List(options) { option -> answers.count { it.option == option } }
+}
 
 /**
  * Spieler und Runden eines Spiels. Ein Spieler gehört zu einem Token aus dem Browserspeicher; meldet sich dasselbe
@@ -35,27 +62,52 @@ class Game(val roomCode: String) {
 
     private class Press(val player: Player, val atMs: Long)
 
+    private class Answer(val player: Player, val option: Int, val atMs: Long)
+
     private val players = LinkedHashMap<String, Player>()
     private val byConnection = HashMap<ConnectionId, Player>()
     private var nextId = 1
 
     private var round = 0
     private var phase = Phase.IDLE
+    private var mode = Mode.BUZZER
+    private var options = 0
+    private var openedAtMs = 0L
     private var lockedAtMs = 0L
+    private var correct: Int? = null
     private val presses = mutableListOf<Press>()
+    private val answers = mutableListOf<Answer>()
 
     /** Nach dem ersten Druck sofort sperren (Quiz: wer zuerst drückt, antwortet). Sonst sperrt der Host. */
     var lockOnFirst = true
         private set
+
+    // Einstellungen für die nächste Runde; die laufende behält ihre
+    private var nextMode = Mode.BUZZER
+    private var nextOptions = Rules.DEFAULT_ANSWER_OPTIONS
 
     fun players(): List<PlayerView> =
         players.values.map { PlayerView(it.id, it.name, it.color, it.connection != null) }
 
     fun round(): RoundView {
         val first = presses.firstOrNull()?.atMs ?: 0
+        val revealed = phase == Phase.LOCKED && mode == Mode.CHOICE
         return RoundView(
-            round, phase, lockOnFirst,
-            presses.mapIndexed { i, p -> PressView(i + 1, p.player.id, p.player.name, p.player.color, p.atMs - first) },
+            number = round,
+            phase = phase,
+            mode = mode,
+            options = options,
+            lockOnFirst = lockOnFirst,
+            nextMode = nextMode,
+            nextOptions = nextOptions,
+            presses = presses.mapIndexed { i, p -> PressView(i + 1, p.player.id, p.player.name, p.player.color, p.atMs - first) },
+            answers = answers.map {
+                AnswerView(
+                    it.player.id, it.player.name, it.player.color, it.option, it.atMs - openedAtMs,
+                    correct = if (revealed && correct != null) it.option == correct else null,
+                )
+            },
+            correct = if (revealed) correct else null,
         )
     }
 
@@ -97,7 +149,7 @@ class Game(val roomCode: String) {
     fun remove(playerId: Int): List<Effect> {
         val player = players.values.firstOrNull { it.id == playerId } ?: return emptyList()
         players.remove(player.token)
-        val hadPressed = presses.removeAll { it.player === player }
+        val hadPressed = presses.removeAll { it.player === player } or answers.removeAll { it.player === player }
         val effects = mutableListOf<Effect>()
         player.connection?.let { conn ->
             byConnection.remove(conn)
@@ -108,17 +160,34 @@ class Game(val roomCode: String) {
         return effects
     }
 
-    /** Host gibt die Buzzer frei: neue Runde, alte Drücke weg. */
-    fun openRound(): List<Effect> {
+    /** Rundenart für die nächste Runde. */
+    fun setMode(value: Mode): List<Effect> {
+        nextMode = value
+        return emptyList()
+    }
+
+    /** Anzahl der Antwort-Knöpfe für die nächste Runde, begrenzt auf [Rules.ANSWER_OPTIONS]. */
+    fun setOptions(value: Int): List<Effect> {
+        nextOptions = value.coerceIn(Rules.ANSWER_OPTIONS)
+        return emptyList()
+    }
+
+    /** Host startet eine neue Runde mit den aktuellen Einstellungen; alte Drücke und Antworten sind weg. */
+    fun openRound(nowMs: Long): List<Effect> {
         round++
         phase = Phase.OPEN
+        mode = nextMode
+        options = if (mode == Mode.CHOICE) nextOptions else 0
+        openedAtMs = nowMs
+        correct = null
         presses.clear()
+        answers.clear()
         return broadcastState()
     }
 
     /** Host sperrt die Buzzer; Drücke, die schon unterwegs waren, zählen noch kurz (siehe [Rules.LATE_PRESS_WINDOW_MS]). */
     fun lockRound(nowMs: Long): List<Effect> {
-        if (phase != Phase.OPEN) return emptyList()
+        if (phase != Phase.OPEN || mode != Mode.BUZZER) return emptyList()
         lock(nowMs)
         return broadcastState()
     }
@@ -128,8 +197,28 @@ class Game(val roomCode: String) {
         return emptyList()
     }
 
+    /** Host löst eine Runde „Antworten“ auf; [correctOption] null heißt ohne richtige Antwort (Umfrage). */
+    fun reveal(correctOption: Int?): List<Effect> {
+        if (phase != Phase.OPEN || mode != Mode.CHOICE) return emptyList()
+        if (correctOption != null && correctOption !in 0 until options) return emptyList()
+        correct = correctOption
+        phase = Phase.LOCKED
+        return broadcastState()
+    }
+
+    fun answer(conn: ConnectionId, answeredRound: Int, option: Int, nowMs: Long): List<Effect> {
+        val player = byConnection[conn] ?: return emptyList()
+        // nach dem Auflösen zählt nichts mehr, auch nichts Verspätetes: das Ergebnis steht schon
+        if (answeredRound != round || mode != Mode.CHOICE || phase != Phase.OPEN) return emptyList()
+        if (option !in 0 until options || answers.any { it.player === player }) return emptyList()
+        answers += Answer(player, option, nowMs)
+        // nur der Spieler selbst erfährt davon; die anderen sehen nichts, damit niemand abschaut
+        return listOf(Effect.Send(conn, stateFor(player)))
+    }
+
     fun press(conn: ConnectionId, pressedRound: Int, nowMs: Long): List<Effect> {
         val player = byConnection[conn] ?: return emptyList()
+        if (mode != Mode.BUZZER) return emptyList()
         if (pressedRound != round || presses.any { it.player === player }) return emptyList()
         val accepted = when (phase) {
             Phase.OPEN -> true
@@ -148,8 +237,26 @@ class Game(val roomCode: String) {
     }
 
     private fun stateFor(player: Player): ServerMessage.State {
-        val rank = presses.indexOfFirst { it.player === player }.takeIf { it >= 0 }?.plus(1)
-        return ServerMessage.State(round, phase, rank)
+        if (mode == Mode.BUZZER) {
+            val rank = presses.indexOfFirst { it.player === player }.takeIf { it >= 0 }?.plus(1)
+            return ServerMessage.State(round, phase, rank)
+        }
+        val mine = answers.firstOrNull { it.player === player }
+        val revealed = phase == Phase.LOCKED
+        // Platz unter den Richtigen; answers liegen schon in Zeitreihenfolge
+        val rank = if (revealed && mine != null && correct != null && mine.option == correct) {
+            answers.filter { it.option == correct }.indexOf(mine) + 1
+        } else {
+            null
+        }
+        return ServerMessage.State(
+            round, phase, rank,
+            mode = Mode.CHOICE,
+            options = options,
+            myAnswer = mine?.option,
+            correct = if (revealed) correct else null,
+            counts = if (revealed) round().counts else null,
+        )
     }
 
     private fun broadcastState(): List<Effect> =
