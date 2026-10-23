@@ -76,11 +76,25 @@ Browser geschlossen), muss beim Wiederkommen derselbe Spieler sein, mit Name, Fa
   Belegung ein anderer), und die IP bleibt während eines Spiels gleich. Ändert sich die IP doch, hilft das Cookie.
 - **Tests in `core`:** Abbruch und Rückkehr mit Token, zwei Verbindungen mit demselben Token, Übernehmen.
 
+## Sprache: Deutsch und Englisch, umschaltbar
+
+- **Host-App:** Texte als Android-Ressourcen (`values/strings.xml` Englisch, `values-de/strings.xml` Deutsch).
+  Startet in der Systemsprache, umschaltbar in den Einstellungen der App über
+  `AppCompatDelegate.setApplicationLocales` (merkt sich Android selbst, ab Android 13 auch in den
+  System-Einstellungen unter „App-Sprache“).
+- **Client-Seite:** Texte in zwei Wörterbüchern (`en.json`, `de.json`) im Client. Startet in der Sprache des
+  Browsers (`navigator.language`), Umschalter DE/EN oben auf der Seite, Wahl im `localStorage`. Jedes Gerät
+  wählt selbst; der Host gibt nichts vor.
+- **Keine Texte im Protokoll:** Der Host schickt nur Zustände und Codes (`locked`, `replaced`, `rank: 2`), die
+  Seite übersetzt selbst. Spielernamen bleiben, wie sie eingegeben wurden.
+- **Prüfung:** Ein Test vergleicht die Schlüssel beider Wörterbücher bzw. beider `strings.xml`, damit keine
+  Übersetzung fehlt.
+
 ## Meilensteine
 
 | # | Inhalt | Ergebnis |
 |---|---|---|
-| M0 | Gradle-Projekt (`app`, `core`), Vite-Client, CI baut Debug-APK | leere App lässt sich installieren |
+| M0 | Gradle-Projekt (`app`, `core`), Vite-Client, CI baut Debug-APK, Gerüst für Deutsch/Englisch in App und Client | leere App lässt sich installieren |
 | M1 | Ktor-Server in der App, liefert Client-Seite, WebSocket-Verbindung, Spielerliste beim Host, Spieler-Token und Wiederverbinden | Mitspielende tauchen beim Host auf und bleiben nach Abbruch dieselben |
 | M2 | Buzzer-Logik in `core` mit Tests: Sperren, Reihenfolge, Freigeben | erstes spielbares Quiz |
 | M3 | QR-Code, IP-Ermittlung (WLAN und Hotspot), Vordergrund-Dienst, WifiLock | Alltagstauglich |
@@ -102,7 +116,6 @@ Sperre für Spieler, die zu früh drücken.
 
 ## Offene Fragen
 
-- Sprache der Oberfläche: nur Deutsch oder gleich Deutsch und Englisch?
 - Wie viele Mitspielende sollen mindestens gehen (Annahme: 20)?
 - Erste Version nur ein Buzzer pro Person, oder gleich Antwort-Knöpfe A/B/C/D?
 - Name „Party Buttons“ und Paketname `de.aikitori.partybuttons` in Ordnung?
