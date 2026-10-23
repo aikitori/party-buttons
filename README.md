@@ -7,6 +7,7 @@
 [![Build](https://github.com/aikitori/party-buttons/actions/workflows/android.yml/badge.svg)](https://github.com/aikitori/party-buttons/actions/workflows/android.yml)
 [![Release](https://img.shields.io/github/v/release/aikitori/party-buttons)](https://github.com/aikitori/party-buttons/releases/latest)
 ![Android 8+](https://img.shields.io/badge/Android-8.0%2B-3ddc84)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue)](LICENSE)
 
 [**Download APK**](https://github.com/aikitori/party-buttons/releases/latest/download/party-buttons.apk)
 
@@ -53,3 +54,7 @@ cd web && npm ci && npm run build   # build the players' page
 ```
 
 Every push to `main` builds a signed APK and publishes it as a release. Roadmap and ideas (German): [PLAN.md](PLAN.md).
+
+## License
+
+[MIT](LICENSE)
