@@ -22,7 +22,7 @@ Stand: alle Meilensteine aus [PLAN.md](PLAN.md) umgesetzt.
 | Host-App (Kotlin, Compose) | `app/` | `./gradlew :app:assembleDebug` (braucht das Android-SDK) |
 | Seite der Mitspielenden (TypeScript, Vite) | `web/` | `cd web && npm ci && npm run build`, landet in `app/src/main/assets/web/` |
 
-Ohne Android-SDK (z. B. in claude-box) überspringt Gradle das Modul `app`; `core`, `server` und die Tests laufen trotzdem.
+Ohne Android-SDK überspringt Gradle das Modul `app`; `core`, `server` und die Tests laufen trotzdem.
 
 Ausprobieren ohne Handy: erst `cd web && npm run build`, dann `./gradlew :server:run`. Der Server druckt die
 Adresse (`http://localhost:8080/j/<Code>`) und jede Änderung von Spielern und Runde. Steuern per Eingabe:
