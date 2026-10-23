@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Party Buttons</string>
+    <string name="tagline">Buzzer für Quiz- und Partyspiele</string>
+    <string name="placeholder">Noch nichts zu spielen. Das Spiel kommt in den nächsten Schritten.</string>
+    <string name="language">Sprache</string>
+    <string name="language_system">System</string>
+    <string name="language_en">English</string>
+    <string name="language_de">Deutsch</string>
+</resources>

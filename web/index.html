@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#1b1b1f" />
+    <title>Party Buttons</title>
+    <link rel="stylesheet" href="./src/style.css" />
+  </head>
+  <body>
+    <header>
+      <h1 data-i18n="title"></h1>
+      <div class="lang" role="group">
+        <button type="button" data-lang="de">DE</button>
+        <button type="button" data-lang="en">EN</button>
+      </div>
+    </header>
+    <main>
+      <p class="status" data-i18n="placeholder"></p>
+      <button type="button" class="buzzer" disabled data-i18n="buzzer"></button>
+    </main>
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>

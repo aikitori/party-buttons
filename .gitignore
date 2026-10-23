@@ -16,3 +16,6 @@ node_modules/
 dist/
 
 .DS_Store
+
+# gebaute Client-Seite (npm run build in web/)
+app/src/main/assets/web/
