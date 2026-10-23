@@ -16,5 +16,11 @@
   "removed": "Der Host hat dich aus dem Spiel genommen.",
   "rejoinButton": "Neu beitreten",
   "retryButton": "Nochmal versuchen",
-  "buzzer": "Buzz!"
+  "buzzer": "Buzz!",
+  "go": "Los! Drück so schnell du kannst.",
+  "pressed": "Gedrückt …",
+  "rankFirst": "Du warst am schnellsten!",
+  "rankN": "Platz {n}",
+  "tooLate": "Zu spät, jemand war schneller.",
+  "roundOver": "Runde vorbei."
 }

@@ -16,5 +16,11 @@
   "removed": "The host removed you from the game.",
   "rejoinButton": "Join again",
   "retryButton": "Try again",
-  "buzzer": "Buzz!"
+  "buzzer": "Buzz!",
+  "go": "Go! Press as fast as you can.",
+  "pressed": "Pressed …",
+  "rankFirst": "You were the fastest!",
+  "rankN": "Place {n}",
+  "tooLate": "Too late, someone was faster.",
+  "roundOver": "Round over."
 }

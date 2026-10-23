@@ -8,7 +8,7 @@ mit Reihenfolge und Zeitabstand.
 - Kein Internet nötig: Host und Mitspielende müssen nur im selben WLAN sein (oder am Hotspot des Hosts).
 - Kein Server, keine Anmeldung: Das Spiel läuft komplett auf dem Host-Handy.
 
-Stand: M1 (Verbindung, Spielerliste, Wiederverbinden), noch kein Buzzer. Plan in [PLAN.md](PLAN.md).
+Stand: M2 (Buzzer mit Reihenfolge), Antwort-Knöpfe A/B/C/D folgen. Plan in [PLAN.md](PLAN.md).
 
 ## Entwickeln
 
@@ -22,7 +22,8 @@ Stand: M1 (Verbindung, Spielerliste, Wiederverbinden), noch kein Buzzer. Plan in
 Ohne Android-SDK (z. B. in claude-box) überspringt Gradle das Modul `app`; `core`, `server` und die Tests laufen trotzdem.
 
 Ausprobieren ohne Handy: erst `cd web && npm run build`, dann `./gradlew :server:run`. Der Server druckt die
-Adresse (`http://localhost:8080/j/<Code>`) und jede Änderung der Spielerliste.
+Adresse (`http://localhost:8080/j/<Code>`) und jede Änderung von Spielern und Runde. Steuern per Eingabe:
+`o` Buzzer freigeben, `l` sperren, `f` Sperre nach dem ersten Druck an/aus.
 Die CI (`.github/workflows/android.yml`) baut bei jedem Push die Seite, führt die Tests aus und legt ein
 Debug-APK als Artefakt ab.
 

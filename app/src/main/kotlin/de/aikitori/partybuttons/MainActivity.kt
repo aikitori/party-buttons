@@ -17,16 +17,18 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.Button
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.darkColorScheme
@@ -44,7 +46,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.os.LocaleListCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
+import de.aikitori.partybuttons.core.Phase
 import de.aikitori.partybuttons.core.PlayerView
+import de.aikitori.partybuttons.core.RoundView
 import de.aikitori.partybuttons.core.Rules
 
 // AppCompatActivity statt ComponentActivity: nur damit funktioniert AppCompatDelegate.setApplicationLocales
@@ -86,36 +90,96 @@ private fun HostScreen(model: HostViewModel = viewModel()) {
                 LanguagePicker()
             }
             HostState.Starting -> Text(stringResource(R.string.starting))
-            is HostState.Running -> RunningGame(s, onRemove = model::removePlayer, onStop = model::stop)
+            is HostState.Running -> RunningGame(s, model)
         }
     }
 }
 
 @Composable
-private fun ColumnScope.RunningGame(state: HostState.Running, onRemove: (Int) -> Unit, onStop: () -> Unit) {
-    Text(stringResource(R.string.room_code), style = MaterialTheme.typography.labelLarge)
-    Text(state.roomCode, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 40.sp)
+private fun ColumnScope.RunningGame(state: HostState.Running, model: HostViewModel) {
+    // oben: wie man reinkommt
+    Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(stringResource(R.string.room_code), style = MaterialTheme.typography.labelLarge)
+        Text(state.roomCode, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 28.sp)
+    }
     if (state.urls.isEmpty()) {
         Text(stringResource(R.string.no_address), color = MaterialTheme.colorScheme.error)
     } else {
-        Text(stringResource(R.string.join_hint))
+        Text(stringResource(R.string.join_hint), style = MaterialTheme.typography.bodySmall)
         SelectionContainer {
             Column { state.urls.forEach { Text(it, fontFamily = FontFamily.Monospace) } }
         }
     }
     HorizontalDivider()
-    Text(
-        stringResource(R.string.players_title, state.players.size, Rules.MAX_PLAYERS),
-        style = MaterialTheme.typography.titleMedium,
-    )
-    if (state.players.isEmpty()) {
-        Text(stringResource(R.string.no_players), color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+    // Mitte: Runde und Ergebnis, darunter die Spieler; scrollt bei vielen Spielern
+    LazyColumn(Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        item { RoundResult(state.round) }
+        item {
+            Text(
+                stringResource(R.string.players_title, state.players.size, Rules.MAX_PLAYERS),
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.padding(top = 16.dp),
+            )
+        }
+        if (state.players.isEmpty()) {
+            item { Text(stringResource(R.string.no_players), color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        }
+        items(state.players, key = { it.id }) { player -> PlayerRow(player, model::removePlayer) }
     }
-    // nimmt den Platz bis zum Beenden-Knopf, scrollt bei vielen Spielern
-    LazyColumn(Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        items(state.players, key = { it.id }) { player -> PlayerRow(player, onRemove) }
+
+    // unten: Steuerung
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Switch(checked = state.round.lockOnFirst, onCheckedChange = model::setLockOnFirst)
+        Text(stringResource(R.string.lock_on_first), Modifier.padding(start = 12.dp))
     }
-    OutlinedButton(onClick = onStop, Modifier.fillMaxWidth()) { Text(stringResource(R.string.stop_game)) }
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Button(onClick = model::openRound, Modifier.weight(1f)) {
+            Text(stringResource(if (state.round.number == 0) R.string.open_round else R.string.next_round))
+        }
+        if (state.round.phase == Phase.OPEN) {
+            FilledTonalButton(onClick = model::lockRound, Modifier.weight(1f)) { Text(stringResource(R.string.lock_round)) }
+        }
+    }
+    TextButton(onClick = model::stop, Modifier.fillMaxWidth()) { Text(stringResource(R.string.stop_game)) }
+}
+
+@Composable
+private fun RoundResult(round: RoundView) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            stringResource(
+                when (round.phase) {
+                    Phase.IDLE -> R.string.phase_idle
+                    Phase.OPEN -> R.string.phase_open
+                    Phase.LOCKED -> R.string.phase_locked
+                },
+            ),
+            style = MaterialTheme.typography.titleMedium,
+        )
+        val first = round.presses.firstOrNull()
+        if (first != null) {
+            // Platz 1 groß, in der Farbe des Spielers
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                Box(Modifier.size(40.dp).background(parseColor(first.color), CircleShape))
+                Text(first.name, fontSize = 40.sp, fontWeight = FontWeight.Bold)
+            }
+            for (press in round.presses.drop(1)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(stringResource(R.string.rank, press.rank), Modifier.width(32.dp))
+                    Box(Modifier.size(14.dp).background(parseColor(press.color), CircleShape))
+                    Text(press.name, Modifier.weight(1f))
+                    Text(
+                        stringResource(R.string.offset_ms, press.offsetMs),
+                        fontFamily = FontFamily.Monospace,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        } else if (round.phase == Phase.LOCKED) {
+            Text(stringResource(R.string.nobody_pressed), color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
 }
 
 @Composable

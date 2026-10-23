@@ -19,6 +19,11 @@ sealed interface ClientMessage {
     @Serializable
     @SerialName("join")
     data class Join(val token: String, val name: String) : ClientMessage
+
+    /** Buzzer gedrückt in Runde [round]. Drücke für eine alte Runde (verspätet angekommen) zählen nicht. */
+    @Serializable
+    @SerialName("press")
+    data class Press(val round: Int) : ClientMessage
 }
 
 @Serializable
@@ -27,6 +32,11 @@ sealed interface ServerMessage {
     @Serializable
     @SerialName("welcome")
     data class Welcome(val id: Int, val name: String, val color: String) : ServerMessage
+
+    /** Stand der Runde für diesen Spieler; kommt nach [Welcome] und bei jeder Änderung. */
+    @Serializable
+    @SerialName("state")
+    data class State(val round: Int, val phase: Phase, val myRank: Int?) : ServerMessage
 
     /** Token unbekannt, die Seite fragt nach dem Namen. */
     @Serializable
@@ -62,6 +72,19 @@ sealed interface ServerMessage {
     @Serializable
     @SerialName("removed")
     data object Removed : ServerMessage
+}
+
+/** Zustand der Runde. */
+@Serializable
+enum class Phase {
+    /** Noch keine Runde, Buzzer aus. */
+    @SerialName("idle") IDLE,
+
+    /** Buzzer frei. */
+    @SerialName("open") OPEN,
+
+    /** Runde vorbei, Ergebnis steht. */
+    @SerialName("locked") LOCKED,
 }
 
 @Serializable

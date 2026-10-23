@@ -7,6 +7,7 @@ import de.aikitori.partybuttons.core.Game
 import de.aikitori.partybuttons.core.PlayerView
 import de.aikitori.partybuttons.core.Protocol
 import de.aikitori.partybuttons.core.RoomCode
+import de.aikitori.partybuttons.core.RoundView
 import de.aikitori.partybuttons.core.Rules
 import de.aikitori.partybuttons.core.ServerMessage
 import io.ktor.http.ContentType
@@ -36,12 +37,16 @@ import java.util.concurrent.atomic.AtomicLong
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+
+/** Alles, was die Host-Oberfläche zeigt. */
+data class HostSnapshot(val players: List<PlayerView>, val round: RoundView)
 
 /**
  * Ein laufendes Spiel: [Game] plus die offenen WebSocket-Verbindungen.
@@ -53,12 +58,21 @@ class PartyRoom(val roomCode: String = RoomCode.generate()) {
     private val sessions = ConcurrentHashMap<ConnectionId, DefaultWebSocketServerSession>()
     private val nextConnection = AtomicLong(1)
 
-    private val _players = MutableStateFlow<List<PlayerView>>(emptyList())
+    private val _snapshot = MutableStateFlow(HostSnapshot(game.players(), game.round()))
 
-    /** Für die Host-Oberfläche: alle Spieler, auch getrennte. */
-    val players: StateFlow<List<PlayerView>> = _players.asStateFlow()
+    /** Für die Host-Oberfläche: alle Spieler (auch getrennte) und die Runde. */
+    val snapshot: StateFlow<HostSnapshot> = _snapshot.asStateFlow()
 
     suspend fun removePlayer(id: Int) = update { game.remove(id) }
+
+    suspend fun openRound() = update { game.openRound() }
+
+    suspend fun lockRound() = update { game.lockRound(now()) }
+
+    suspend fun setLockOnFirst(value: Boolean) = update { game.setLockOnFirst(value) }
+
+    // monotone Uhr: springt nicht, wenn das Handy die Uhrzeit stellt
+    private fun now(): Long = System.nanoTime() / 1_000_000
 
     internal suspend fun handle(session: DefaultWebSocketServerSession) {
         val conn = ConnectionId(nextConnection.getAndIncrement())
@@ -69,6 +83,11 @@ class PartyRoom(val roomCode: String = RoomCode.generate()) {
                 when (val message = Protocol.decodeClient(frame.readText())) {
                     is ClientMessage.Hello -> update { game.hello(conn, message.token) }
                     is ClientMessage.Join -> update { game.join(conn, message.token, message.name) }
+                    is ClientMessage.Press -> {
+                        // Zeit sofort beim Empfang nehmen, nicht erst, wenn das Lock frei ist
+                        val at = now()
+                        update { game.press(conn, message.round, at) }
+                    }
                     null -> Unit
                 }
             }
@@ -82,7 +101,7 @@ class PartyRoom(val roomCode: String = RoomCode.generate()) {
     private suspend fun update(change: () -> List<Effect>) {
         val effects = lock.withLock {
             val effects = change()
-            _players.value = game.players()
+            _snapshot.value = HostSnapshot(game.players(), game.round())
             effects
         }
         for (effect in effects) {
@@ -182,7 +201,19 @@ fun main(args: Array<String>): Unit = runBlocking {
     val server = PartyServer(DirectoryStaticFiles(dir))
     val port = server.start()
     println("Party Buttons: http://localhost:$port/j/${server.room.roomCode}")
-    server.room.players.collect { players ->
+    println("Befehle: o = Buzzer freigeben, l = sperren, f = Sperre nach erstem Druck an/aus")
+    launch(kotlinx.coroutines.Dispatchers.IO) {
+        while (true) {
+            when (readlnOrNull()?.trim() ?: break) {
+                "o" -> server.room.openRound()
+                "l" -> server.room.lockRound()
+                "f" -> server.room.setLockOnFirst(!server.room.snapshot.value.round.lockOnFirst)
+            }
+        }
+    }
+    server.room.snapshot.collect { (players, round) ->
         println("Spieler: " + players.joinToString { "${it.id} ${it.name}" + if (it.connected) "" else " (getrennt)" })
+        println("Runde ${round.number} ${round.phase} (Sperre nach erstem: ${round.lockOnFirst}): " +
+            round.presses.joinToString { "${it.rank}. ${it.name} +${it.offsetMs} ms" })
     }
 }

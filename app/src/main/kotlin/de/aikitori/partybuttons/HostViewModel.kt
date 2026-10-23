@@ -5,6 +5,8 @@ import android.content.res.AssetManager
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import de.aikitori.partybuttons.core.PlayerView
+import de.aikitori.partybuttons.core.RoundView
+import de.aikitori.partybuttons.server.PartyRoom
 import de.aikitori.partybuttons.server.PartyServer
 import de.aikitori.partybuttons.server.StaticFiles
 import java.net.Inet4Address
@@ -27,6 +29,7 @@ sealed interface HostState {
         /** Adressen, unter denen die Mitspielenden die Seite öffnen. Leer ohne WLAN. */
         val urls: List<String>,
         val players: List<PlayerView>,
+        val round: RoundView,
     ) : HostState
 }
 
@@ -54,8 +57,8 @@ class HostViewModel(application: Application) : AndroidViewModel(application) {
             val running = started.getOrNull() ?: return@launch
             server = running
             val urls = lanAddresses().map { "http://$it:${running.port}/j/${running.room.roomCode}" }
-            running.room.players.collect { players ->
-                _state.value = HostState.Running(running.room.roomCode, urls, players)
+            running.room.snapshot.collect { snapshot ->
+                _state.value = HostState.Running(running.room.roomCode, urls, snapshot.players, snapshot.round)
             }
         }
     }
@@ -69,9 +72,17 @@ class HostViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) { running.stop() }
     }
 
-    fun removePlayer(id: Int) {
+    fun removePlayer(id: Int) = withRoom { it.removePlayer(id) }
+
+    fun openRound() = withRoom { it.openRound() }
+
+    fun lockRound() = withRoom { it.lockRound() }
+
+    fun setLockOnFirst(value: Boolean) = withRoom { it.setLockOnFirst(value) }
+
+    private fun withRoom(action: suspend (PartyRoom) -> Unit) {
         val running = server ?: return
-        viewModelScope.launch { running.room.removePlayer(id) }
+        viewModelScope.launch { action(running.room) }
     }
 
     override fun onCleared() {

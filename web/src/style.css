@@ -160,5 +160,45 @@ h1.player::before {
 }
 
 .buzzer:disabled {
-  opacity: 0.4;
+  opacity: 0.35;
+}
+
+.buzzer.open {
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+.buzzer.open:active {
+  transform: translateY(6px);
+  box-shadow: 0 2px 0 rgb(0 0 0 / 0.25);
+}
+
+.buzzer.pressed {
+  opacity: 1;
+  transform: translateY(6px);
+  box-shadow: 0 2px 0 rgb(0 0 0 / 0.25);
+}
+
+.buzzer.winner {
+  opacity: 1;
+  background: #e0a800;
+  color: #1b1b1f;
+}
+
+.round-status {
+  min-height: 1.5em;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+@keyframes pulse {
+  50% {
+    transform: scale(1.04);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .buzzer.open {
+    animation: none;
+  }
 }

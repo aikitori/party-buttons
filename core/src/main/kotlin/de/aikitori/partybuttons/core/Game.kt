@@ -15,10 +15,17 @@ sealed interface Effect {
 /** So sieht der Host einen Spieler. */
 data class PlayerView(val id: Int, val name: String, val color: String, val connected: Boolean)
 
+/** Ein Druck in der Reihenfolge; [offsetMs] ist der Abstand zum ersten Druck. */
+data class PressView(val rank: Int, val playerId: Int, val name: String, val color: String, val offsetMs: Long)
+
+/** So sieht der Host die Runde. */
+data class RoundView(val number: Int, val phase: Phase, val lockOnFirst: Boolean, val presses: List<PressView>)
+
 /**
- * Spieler eines Spiels. Ein Spieler gehört zu einem Token aus dem Browserspeicher; meldet sich dasselbe Token
- * nach einem Abbruch wieder, ist es derselbe Spieler. Getrennte Spieler bleiben, bis der Host sie entfernt.
+ * Spieler und Runden eines Spiels. Ein Spieler gehört zu einem Token aus dem Browserspeicher; meldet sich dasselbe
+ * Token nach einem Abbruch wieder, ist es derselbe Spieler. Getrennte Spieler bleiben, bis der Host sie entfernt.
  *
+ * Zeiten ([nowMs]) kommen vom Server aus einer monotonen Uhr, damit das Spiel ohne echte Zeit testbar ist.
  * Nicht threadsicher: Der Server ruft alles nacheinander auf.
  */
 class Game(val roomCode: String) {
@@ -26,12 +33,31 @@ class Game(val roomCode: String) {
         var connection: ConnectionId? = null
     }
 
+    private class Press(val player: Player, val atMs: Long)
+
     private val players = LinkedHashMap<String, Player>()
     private val byConnection = HashMap<ConnectionId, Player>()
     private var nextId = 1
 
+    private var round = 0
+    private var phase = Phase.IDLE
+    private var lockedAtMs = 0L
+    private val presses = mutableListOf<Press>()
+
+    /** Nach dem ersten Druck sofort sperren (Quiz: wer zuerst drückt, antwortet). Sonst sperrt der Host. */
+    var lockOnFirst = true
+        private set
+
     fun players(): List<PlayerView> =
         players.values.map { PlayerView(it.id, it.name, it.color, it.connection != null) }
+
+    fun round(): RoundView {
+        val first = presses.firstOrNull()?.atMs ?: 0
+        return RoundView(
+            round, phase, lockOnFirst,
+            presses.mapIndexed { i, p -> PressView(i + 1, p.player.id, p.player.name, p.player.color, p.atMs - first) },
+        )
+    }
 
     fun hello(conn: ConnectionId, token: String): List<Effect> {
         if (!isValidToken(token)) return listOf(Effect.Close(conn, ServerMessage.Invalid))
@@ -71,10 +97,63 @@ class Game(val roomCode: String) {
     fun remove(playerId: Int): List<Effect> {
         val player = players.values.firstOrNull { it.id == playerId } ?: return emptyList()
         players.remove(player.token)
-        val conn = player.connection ?: return emptyList()
-        byConnection.remove(conn)
-        return listOf(Effect.Close(conn, ServerMessage.Removed))
+        val hadPressed = presses.removeAll { it.player === player }
+        val effects = mutableListOf<Effect>()
+        player.connection?.let { conn ->
+            byConnection.remove(conn)
+            effects += Effect.Close(conn, ServerMessage.Removed)
+        }
+        // die anderen rücken in der Reihenfolge auf
+        if (hadPressed) effects += broadcastState()
+        return effects
     }
+
+    /** Host gibt die Buzzer frei: neue Runde, alte Drücke weg. */
+    fun openRound(): List<Effect> {
+        round++
+        phase = Phase.OPEN
+        presses.clear()
+        return broadcastState()
+    }
+
+    /** Host sperrt die Buzzer; Drücke, die schon unterwegs waren, zählen noch kurz (siehe [Rules.LATE_PRESS_WINDOW_MS]). */
+    fun lockRound(nowMs: Long): List<Effect> {
+        if (phase != Phase.OPEN) return emptyList()
+        lock(nowMs)
+        return broadcastState()
+    }
+
+    fun setLockOnFirst(value: Boolean): List<Effect> {
+        lockOnFirst = value
+        return emptyList()
+    }
+
+    fun press(conn: ConnectionId, pressedRound: Int, nowMs: Long): List<Effect> {
+        val player = byConnection[conn] ?: return emptyList()
+        if (pressedRound != round || presses.any { it.player === player }) return emptyList()
+        val accepted = when (phase) {
+            Phase.OPEN -> true
+            Phase.LOCKED -> nowMs - lockedAtMs <= Rules.LATE_PRESS_WINDOW_MS
+            Phase.IDLE -> false
+        }
+        if (!accepted) return emptyList()
+        presses += Press(player, nowMs)
+        if (phase == Phase.OPEN && lockOnFirst) lock(nowMs)
+        return broadcastState()
+    }
+
+    private fun lock(nowMs: Long) {
+        phase = Phase.LOCKED
+        lockedAtMs = nowMs
+    }
+
+    private fun stateFor(player: Player): ServerMessage.State {
+        val rank = presses.indexOfFirst { it.player === player }.takeIf { it >= 0 }?.plus(1)
+        return ServerMessage.State(round, phase, rank)
+    }
+
+    private fun broadcastState(): List<Effect> =
+        players.values.mapNotNull { player -> player.connection?.let { Effect.Send(it, stateFor(player)) } }
 
     private fun attach(conn: ConnectionId, player: Player): List<Effect> {
         val effects = mutableListOf<Effect>()
@@ -86,6 +165,7 @@ class Game(val roomCode: String) {
         player.connection = conn
         byConnection[conn] = player
         effects += Effect.Send(conn, ServerMessage.Welcome(player.id, player.name, player.color))
+        effects += Effect.Send(conn, stateFor(player))
         return effects
     }
 

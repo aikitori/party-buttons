@@ -34,8 +34,9 @@ export function lang(): Lang {
   return current;
 }
 
-export function t(key: Key): string {
-  return dictionaries[current][key];
+/** Text zu [key]; Platzhalter wie {n} werden durch [params] ersetzt. */
+export function t(key: Key, params: Record<string, string | number> = {}): string {
+  return dictionaries[current][key].replace(/\{(\w+)\}/g, (_, name) => String(params[name] ?? `{${name}}`));
 }
 
 export function setLang(next: Lang): void {

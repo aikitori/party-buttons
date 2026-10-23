@@ -1,6 +1,6 @@
 import { Connection } from "./connection";
 import { apply, onLangChange, setLang, t, type Key, type Lang } from "./i18n";
-import { MAX_NAME_LENGTH, type NameProblem, type ServerMessage } from "./protocol";
+import { MAX_NAME_LENGTH, type NameProblem, type Phase, type ServerMessage } from "./protocol";
 import { getToken, lastName, newToken, rememberName } from "./token";
 
 type View =
@@ -15,6 +15,10 @@ const roomCode = location.pathname.match(/^\/j\/([A-Za-z0-9]+)/)?.[1]?.toUpperCa
 let token = getToken();
 let view: View = { kind: "connecting" };
 let online = false;
+
+// Runde, wie der Host sie zuletzt gemeldet hat; pressedRound merkt den eigenen Druck, bis der Host antwortet
+let round = { number: 0, phase: "idle" as Phase, myRank: null as number | null };
+let pressedRound = -1;
 
 const nameErrors: Record<NameProblem, Key> = { empty: "nameEmpty", tooLong: "nameTooLong", taken: "nameTaken" };
 
@@ -42,6 +46,7 @@ function render(): void {
     $("player-name").textContent = view.name;
     heading.style.setProperty("--player", view.color);
     heading.classList.add("player");
+    renderRound();
   } else if (view.kind === "notice") {
     $("notice-text").textContent = t(view.text);
     const button = $<HTMLButtonElement>("notice-button");
@@ -50,8 +55,40 @@ function render(): void {
   }
 }
 
+function renderRound(): void {
+  const buzzer = $<HTMLButtonElement>("buzzer");
+  const pressed = pressedRound === round.number && round.myRank === null;
+  const canPress = online && round.phase === "open" && round.myRank === null && !pressed;
+  buzzer.disabled = !canPress;
+  buzzer.classList.toggle("open", canPress);
+  buzzer.classList.toggle("pressed", pressed);
+  buzzer.classList.toggle("winner", round.myRank === 1);
+
+  let status: string;
+  if (round.myRank === 1) status = t("rankFirst");
+  else if (round.myRank !== null) status = t("rankN", { n: round.myRank });
+  else if (pressed) status = t("pressed");
+  else if (round.phase === "open") status = t("go");
+  else if (round.phase === "locked") status = t(pressedRound === round.number ? "tooLate" : "roundOver");
+  else status = t("waiting");
+  $("round-status").textContent = status;
+}
+
+function press(event: Event): void {
+  event.preventDefault();
+  if (round.phase !== "open" || round.myRank !== null || pressedRound === round.number || !online) return;
+  pressedRound = round.number;
+  connection.send({ type: "press", round: round.number });
+  navigator.vibrate?.(40);
+  renderRound();
+}
+
 function handle(message: ServerMessage): void {
   switch (message.type) {
+    case "state":
+      round = { number: message.round, phase: message.phase, myRank: message.myRank };
+      if (view.kind === "joined") renderRound();
+      break;
     case "welcome":
       rememberName(message.name);
       show({ kind: "joined", name: message.name, color: message.color });
@@ -124,6 +161,11 @@ $<HTMLFormElement>("view-name").addEventListener("submit", (event) => {
   if ([...name].length > MAX_NAME_LENGTH) return showNameForm("tooLong");
   connection.send({ type: "join", token, name });
 });
+
+// pointerdown statt click: zählt schon beim Berühren, nicht erst beim Loslassen
+const buzzer = $<HTMLButtonElement>("buzzer");
+buzzer.addEventListener("pointerdown", press);
+buzzer.addEventListener("click", press); // Tastatur, Bildschirmleser
 
 $("notice-button").addEventListener("click", () => {
   if (view.kind === "notice") view.action?.();

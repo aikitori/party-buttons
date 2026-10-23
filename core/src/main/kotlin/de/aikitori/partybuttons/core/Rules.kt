@@ -12,6 +12,12 @@ object Rules {
     val ANSWER_OPTIONS = 2..8
     const val DEFAULT_ANSWER_OPTIONS = 4
 
+    /**
+     * So lange nach dem Sperren zählen Drücke noch für die Reihenfolge: Sie waren schon unterwegs, als gesperrt
+     * wurde, oder der Browser wusste noch nichts davon.
+     */
+    const val LATE_PRESS_WINDOW_MS = 500L
+
     /** Fester Port des Webservers, damit der Browserspeicher der Mitspielenden gleich bleibt. */
     const val DEFAULT_PORT = 8080
 

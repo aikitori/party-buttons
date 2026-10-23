@@ -13,11 +13,14 @@ class ProtocolTest {
         assertEquals("""{"type":"needName"}""", Protocol.encode(ServerMessage.NeedName))
         assertEquals("""{"type":"nameRejected","reason":"tooLong"}""",
             Protocol.encode(ServerMessage.NameRejected(NameProblem.TOO_LONG)))
+        assertEquals("""{"type":"state","round":2,"phase":"locked","myRank":null}""",
+            Protocol.encode(ServerMessage.State(2, Phase.LOCKED, null)))
     }
 
     @Test
     fun `Nachrichten vom Browser`() {
         assertEquals(ClientMessage.Hello("x".repeat(22)), Protocol.decodeClient("""{"type":"hello","token":"${"x".repeat(22)}"}"""))
+        assertEquals(ClientMessage.Press(4), Protocol.decodeClient("""{"type":"press","round":4}"""))
         assertEquals(ClientMessage.Join("t", "Anna"), Protocol.decodeClient("""{"type":"join","token":"t","name":"Anna","extra":1}"""))
     }
 

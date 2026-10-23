@@ -60,16 +60,18 @@ class PartyServerTest {
             assertEquals("needName", receiveType())
             sendJson("""{"type":"join","token":"$token","name":"Anna"}""")
             assertEquals("welcome", receiveType())
+            assertEquals("state", receiveType())
         }
         // Verbindung zu: Spieler bleibt, aber getrennt
-        val offline = withTimeout(5.seconds) { room.players.first { it.isNotEmpty() && !it.single().connected } }
+        val offline = withTimeout(5.seconds) { room.snapshot.first { it.players.isNotEmpty() && !it.players.single().connected }.players }
         assertEquals("Anna", offline.single().name)
 
         client.webSocket("/ws/abcde") { // Raumcode ohne Rücksicht auf Groß/klein
             sendJson("""{"type":"hello","token":"$token"}""")
             val frame = withTimeout(5.seconds) { incoming.receive() } as Frame.Text
             assertEquals(Protocol.encode(ServerMessage.Welcome(1, "Anna", offline.single().color)), frame.readText())
-            assertTrue(withTimeout(5.seconds) { room.players.first { it.single().connected } }.single().connected)
+            assertEquals("state", receiveType())
+            assertTrue(withTimeout(5.seconds) { room.snapshot.first { it.players.single().connected } }.players.single().connected)
         }
     }
 
@@ -78,13 +80,32 @@ class PartyServerTest {
         client.webSocket("/ws/ABCDE") {
             sendJson("""{"type":"join","token":"$token","name":"Anna"}""")
             assertEquals("welcome", receiveType())
+            assertEquals("state", receiveType())
             client.webSocket("/ws/ABCDE") {
                 sendJson("""{"type":"hello","token":"$token"}""")
                 assertEquals("welcome", receiveType())
+            assertEquals("state", receiveType())
             }
             assertEquals("replaced", receiveType())
         }
     }
+
+    @Test
+    fun `Buzzer über den WebSocket`() = test { client ->
+        client.webSocket("/ws/ABCDE") {
+            sendJson("""{"type":"join","token":"$token","name":"Anna"}""")
+            assertEquals("welcome", receiveType())
+            assertEquals("state", receiveType())
+            room.openRound()
+            assertEquals("""{"type":"state","round":1,"phase":"open","myRank":null}""", receiveText())
+            sendJson("""{"type":"press","round":1}""")
+            assertEquals("""{"type":"state","round":1,"phase":"locked","myRank":1}""", receiveText())
+        }
+        assertEquals(listOf("Anna"), room.snapshot.value.round.presses.map { it.name })
+    }
+
+    private suspend fun DefaultClientWebSocketSession.receiveText(): String =
+        (withTimeout(5.seconds) { incoming.receive() } as Frame.Text).readText()
 
     @Test
     fun `falscher Raumcode`() = test { client ->
@@ -98,10 +119,11 @@ class PartyServerTest {
         client.webSocket("/ws/ABCDE") {
             sendJson("""{"type":"join","token":"$token","name":"Anna"}""")
             assertEquals("welcome", receiveType())
+            assertEquals("state", receiveType())
             room.removePlayer(1)
             assertEquals("removed", receiveType())
         }
-        assertTrue(room.players.value.isEmpty())
+        assertTrue(room.snapshot.value.players.isEmpty())
     }
 
     @Test
