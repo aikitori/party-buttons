@@ -58,6 +58,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -99,7 +100,7 @@ class MainActivity : AppCompatActivity() {
 }
 
 @Composable
-private fun PartyButtonsTheme(content: @Composable () -> Unit) {
+internal fun PartyButtonsTheme(content: @Composable () -> Unit) {
     val colors = if (isSystemInDarkTheme()) darkColorScheme() else lightColorScheme()
     MaterialTheme(colorScheme = colors, content = content)
 }
@@ -121,6 +122,12 @@ private fun HostScreen() {
             HostSession.start(context)
         }
     }
+    HostContent(state, start)
+}
+
+/** Der ganze Host-Bildschirm zu einem Zustand; ohne [HostSession], damit die Screenshot-Tests ihn zeichnen können. */
+@Composable
+internal fun HostContent(state: HostState, start: () -> Unit) {
     Column(
         Modifier.safeDrawingPadding().padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -151,30 +158,7 @@ private fun ColumnScope.RunningGame(state: HostState.Running) {
         onDispose { view.keepScreenOn = false }
     }
     var largeQr by remember { mutableStateOf(false) }
-
-    // oben: wie man reinkommt
     val url = state.urls.firstOrNull()
-    Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
-        if (url != null) {
-            QrImage(
-                url,
-                Modifier.size(132.dp).clickable(onClickLabel = stringResource(R.string.qr_enlarge)) { largeQr = true },
-            )
-        }
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(stringResource(R.string.room_code), style = MaterialTheme.typography.labelLarge)
-            Text(state.roomCode, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 28.sp)
-            if (url != null) Text(stringResource(R.string.qr_hint), style = MaterialTheme.typography.bodySmall)
-        }
-    }
-    if (url == null) {
-        Text(stringResource(R.string.no_address), color = MaterialTheme.colorScheme.error)
-    } else {
-        Text(stringResource(R.string.join_hint), style = MaterialTheme.typography.bodySmall)
-        SelectionContainer {
-            Column { state.urls.forEach { Text(it, fontFamily = FontFamily.Monospace, fontSize = 13.sp) } }
-        }
-    }
     if (largeQr && url != null) {
         Dialog(onDismissRequest = { largeQr = false }) {
             Surface(shape = MaterialTheme.shapes.large) {
@@ -187,10 +171,35 @@ private fun ColumnScope.RunningGame(state: HostState.Running) {
             }
         }
     }
-    HorizontalDivider()
 
-    // Mitte: Runde und Ergebnis, darunter die Spieler; scrollt bei vielen Spielern
+    // Mitte: wie man reinkommt, Runde und Ergebnis, darunter die Spieler; der Kopf scrollt weg, die Steuerung bleibt
     LazyColumn(Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    if (url != null) {
+                        QrImage(
+                            url,
+                            Modifier.size(112.dp).clickable(onClickLabel = stringResource(R.string.qr_enlarge)) { largeQr = true },
+                        )
+                    }
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(stringResource(R.string.room_code), style = MaterialTheme.typography.labelLarge)
+                        Text(state.roomCode, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 28.sp)
+                        if (url != null) Text(stringResource(R.string.qr_hint), style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+                if (url == null) {
+                    Text(stringResource(R.string.no_address), color = MaterialTheme.colorScheme.error)
+                } else {
+                    Text(stringResource(R.string.join_hint), style = MaterialTheme.typography.bodySmall)
+                    SelectionContainer {
+                        Column { state.urls.forEach { Text(it, fontFamily = FontFamily.Monospace, fontSize = 13.sp) } }
+                    }
+                }
+                HorizontalDivider(Modifier.padding(top = 8.dp))
+            }
+        }
         item {
             RoundResult(
                 state.round,
@@ -312,7 +321,12 @@ private fun OptionsStepper(count: Int, onChange: (Int) -> Unit) {
 
 @Composable
 private fun IconTextButton(symbol: String, description: String, enabled: Boolean, onClick: () -> Unit) {
-    TextButton(onClick = onClick, enabled = enabled, modifier = Modifier.semantics { contentDescription = description }) {
+    TextButton(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = Modifier.size(48.dp).semantics { contentDescription = description },
+        contentPadding = PaddingValues(0.dp),
+    ) {
         Text(symbol, fontSize = 22.sp, fontWeight = FontWeight.Bold)
     }
 }
@@ -359,12 +373,12 @@ private fun BuzzerResult(round: RoundView, wallClockOffsetMs: Long, teamOf: Map<
                 Text(stringResource(R.string.rank, press.rank), Modifier.width(32.dp))
                 Box(Modifier.size(14.dp).background(parseColor(press.color), CircleShape))
                 Column(Modifier.weight(1f)) {
-                    Text(press.name)
-                    PressTimes(press.atMs + wallClockOffsetMs, press.sinceOpenMs, teamOf[press.playerId])
+                    NameWithTeam(press.name, teamOf[press.playerId])
+                    PressTimes(press.atMs + wallClockOffsetMs, press.sinceOpenMs)
                 }
                 Text(
-                    stringResource(R.string.offset_ms, press.offsetMs),
-                    fontFamily = FontFamily.Monospace,
+                    formatOffset(press.offsetMs),
+                    style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
                     fontWeight = FontWeight.Bold,
                 )
                 TextButton(onClick = { HostSession.addScore(press.playerId, 1) }) { Text(stringResource(R.string.add_point)) }
@@ -375,17 +389,32 @@ private fun BuzzerResult(round: RoundView, wallClockOffsetMs: Long, teamOf: Map<
     }
 }
 
+/** Name, dahinter klein das Team. */
+@Composable
+private fun NameWithTeam(name: String, team: Int?, bold: Boolean = false) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(name, fontWeight = if (bold) FontWeight.Bold else null)
+        if (team != null) {
+            Text(teamName(team), style = MaterialTheme.typography.labelMedium, color = TeamColors[team])
+        }
+    }
+}
+
 /** Uhrzeit des Drucks (geschätzter Moment des Drückens, mit Laufzeitausgleich) und Zeit seit dem Freigeben. */
 @Composable
 private fun PressTimes(wallClockMs: Long, sinceOpenMs: Long, team: Int? = null) {
     val prefix = team?.let { teamName(it) + " · " } ?: ""
     Text(
         prefix + stringResource(R.string.press_times, formatClock(wallClockMs), sinceOpenMs / 1000.0),
-        style = MaterialTheme.typography.bodySmall,
-        fontFamily = FontFamily.Monospace,
+        style = MaterialTheme.typography.bodySmall.copy(fontFeatureSettings = "tnum"),
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
 }
+
+/** Abstand zum Schnellsten: unter einer Sekunde in ms, darüber in Sekunden. */
+@Composable
+private fun formatOffset(ms: Long): String =
+    if (ms < 1000) stringResource(R.string.offset_ms, ms) else stringResource(R.string.offset_s, ms / 1000.0)
 
 private val clockFormat = DateTimeFormatter.ofPattern("HH:mm:ss.SSS")
 
@@ -431,14 +460,14 @@ private fun ChoiceResult(round: RoundView, connectedPlayers: Int, wallClockOffse
                 Text(stringResource(R.string.rank, i + 1), Modifier.width(32.dp))
                 Box(Modifier.size(14.dp).background(parseColor(answer.color), CircleShape))
                 Column(Modifier.weight(1f)) {
-                    Text(answer.name, fontWeight = if (i == 0) FontWeight.Bold else null)
-                    PressTimes(answer.atMs + wallClockOffsetMs, answer.offsetMs, teamOf[answer.playerId])
+                    NameWithTeam(answer.name, teamOf[answer.playerId], bold = i == 0)
+                    PressTimes(answer.atMs + wallClockOffsetMs, answer.offsetMs)
                 }
                 // Abstand zum schnellsten Richtigen
                 if (i > 0) {
                     Text(
-                        stringResource(R.string.offset_ms, answer.offsetMs - correct.first().offsetMs),
-                        fontFamily = FontFamily.Monospace,
+                        formatOffset(answer.offsetMs - correct.first().offsetMs),
+                        style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
                         fontWeight = FontWeight.Bold,
                     )
                 }
@@ -487,7 +516,7 @@ private fun TeamsSection(teams: List<TeamView>) {
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                Text(stringResource(R.string.score_points, team.score), fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                Text(stringResource(R.string.score_points, team.score), fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -517,40 +546,44 @@ private fun PlayerRow(player: PlayerView, everyone: List<PlayerView>, teamCount:
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Box(Modifier.size(16.dp).background(parseColor(player.color).copy(alpha = alpha), CircleShape))
         Column(Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                player.team?.let { Box(Modifier.padding(end = 6.dp).size(10.dp).background(TeamColors[it], CircleShape)) }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(player.name, color = MaterialTheme.colorScheme.onSurface.copy(alpha = alpha))
+                player.team?.let {
+                    Text(teamName(it), style = MaterialTheme.typography.labelMedium, color = TeamColors[it].copy(alpha = alpha))
+                }
             }
             val status = stringResource(if (player.connected) R.string.player_connected else R.string.player_disconnected)
             val latency = player.latencyMs?.let { " · " + stringResource(R.string.latency, it) } ?: ""
-            val team = player.team?.let { teamName(it) + " · " } ?: ""
-            Text(team + status + latency, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(status + latency, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        Text(stringResource(R.string.score_points, player.score), fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
-        IconTextButton("−", stringResource(R.string.remove_point), enabled = true) { HostSession.addScore(player.id, -1) }
-        IconTextButton("+", stringResource(R.string.add_point), enabled = true) { HostSession.addScore(player.id, 1) }
-        var menu by remember { mutableStateOf(false) }
-        Box {
-            IconTextButton("⋮", stringResource(R.string.player_menu, player.name), enabled = true) { menu = true }
-            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                if (!player.connected) {
+        Text(stringResource(R.string.score_points, player.score), fontWeight = FontWeight.Bold)
+        // Knöpfe dicht beieinander, damit der Name Platz hat
+        Row {
+            IconTextButton("−", stringResource(R.string.remove_point), enabled = true) { HostSession.addScore(player.id, -1) }
+            IconTextButton("+", stringResource(R.string.add_point), enabled = true) { HostSession.addScore(player.id, 1) }
+            var menu by remember { mutableStateOf(false) }
+            Box {
+                IconTextButton("⋮", stringResource(R.string.player_menu, player.name), enabled = true) { menu = true }
+                DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                    if (!player.connected) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.merge_player)) },
+                            onClick = { menu = false; merging = true },
+                        )
+                    }
+                    for (team in 0 until teamCount) {
+                        if (team == player.team) continue
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.move_to_team, teamName(team))) },
+                            leadingIcon = { Box(Modifier.size(12.dp).background(TeamColors[team], CircleShape)) },
+                            onClick = { menu = false; HostSession.setPlayerTeam(player.id, team) },
+                        )
+                    }
                     DropdownMenuItem(
-                        text = { Text(stringResource(R.string.merge_player)) },
-                        onClick = { menu = false; merging = true },
+                        text = { Text(stringResource(R.string.remove_player)) },
+                        onClick = { menu = false; HostSession.removePlayer(player.id) },
                     )
                 }
-                for (team in 0 until teamCount) {
-                    if (team == player.team) continue
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.move_to_team, teamName(team))) },
-                        leadingIcon = { Box(Modifier.size(12.dp).background(TeamColors[team], CircleShape)) },
-                        onClick = { menu = false; HostSession.setPlayerTeam(player.id, team) },
-                    )
-                }
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.remove_player)) },
-                    onClick = { menu = false; HostSession.removePlayer(player.id) },
-                )
             }
         }
     }

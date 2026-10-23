@@ -11,7 +11,7 @@
 
 [**Download APK**](https://github.com/aikitori/party-buttons/releases/latest/download/party-buttons.apk)
 
-<img src="docs/buzzer.png" width="220" alt="Buzzer open"> <img src="docs/winner.png" width="220" alt="Fastest press"> <img src="docs/answers.png" width="220" alt="Answer revealed">
+<img src="docs/host.png" width="200" alt="Host app"> <img src="docs/buzzer.png" width="200" alt="Buzzer open"> <img src="docs/winner.png" width="200" alt="Fastest press"> <img src="docs/answers.png" width="200" alt="Answer revealed">
 
 </div>
 
@@ -53,6 +53,7 @@ cd web && npm ci && npm run build   # build the players' page
 ./gradlew :core:test :server:test   # tests
 ./gradlew :server:run               # try it in a browser without a phone
 ./gradlew :app:assembleDebug        # APK (needs the Android SDK)
+./gradlew :app:recordRoborazziDebug # host screenshots into app/screenshots/, no phone needed
 ```
 
 Every push to `main` builds a signed APK and publishes it as a release. Roadmap and ideas (German): [PLAN.md](PLAN.md).

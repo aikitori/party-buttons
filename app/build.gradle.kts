@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.roborazzi)
 }
 
 android {
@@ -46,6 +47,11 @@ android {
         compose = true
     }
 
+    // Screenshot-Tests mit Roborazzi laufen unter Robolectric und brauchen die echten Ressourcen
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
+    }
+
     packaging {
         resources {
             // doppelte Lizenz-/Index-Dateien aus den Ktor-Abhängigkeiten
@@ -69,4 +75,17 @@ dependencies {
     implementation(libs.compose.material3)
     implementation(libs.compose.ui.tooling.preview)
     debugImplementation(libs.compose.ui.tooling)
+    debugImplementation(libs.compose.ui.test.manifest)
+
+    testImplementation(libs.junit4)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.compose.ui.test.junit4)
+    testImplementation(libs.roborazzi)
+    testImplementation(libs.roborazzi.compose)
+    testImplementation(libs.roborazzi.junit.rule)
+}
+
+// ./gradlew :app:recordRoborazziDebug legt die Bilder hier ab
+roborazzi {
+    outputDir.set(layout.projectDirectory.dir("screenshots"))
 }

@@ -1,6 +1,6 @@
 # Umsetzungsplan
 
-Stand 2026-10-23: M0 bis M5 umgesetzt, dazu Punktestand, Zeiten beim Host, Teams und Übersicht der Drücke für alle. Offen sind die „Späteren Ideen“ unten.
+Stand 2026-10-23: M0 bis M5 umgesetzt, dazu Punktestand, Zeiten beim Host, Teams und Übersicht der Drücke für alle, Screenshot-Tests des Host-Bildschirms mit Roborazzi. Offen sind die „Späteren Ideen“ unten.
 
 ## Idee in einem Satz
 
