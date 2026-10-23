@@ -1,47 +1,55 @@
-# Party Buttons
+<div align="center">
 
-Virtuelle Buzzer für Quizspiele und Partyspiele. Ein Android-Handy ist der **Host**: Es zeigt einen QR-Code,
-alle anderen scannen ihn und bekommen im Browser einen großen Knopf. Wer zuerst drückt, sieht der Host sofort,
-mit Reihenfolge und Zeitabstand.
+# 🔴 Party Buttons
 
-- Keine App auf den Handys der Mitspielenden nötig, nur ein Browser (Android und iPhone).
-- Kein Internet nötig: Host und Mitspielende müssen nur im selben WLAN sein (oder am Hotspot des Hosts).
-- Kein Server, keine Anmeldung: Das Spiel läuft komplett auf dem Host-Handy.
+**Buzzer und Antwort-Knöpfe für Quiz- und Partyspiele, ohne Internet und ohne App für die Mitspielenden.**
 
-**Installieren:** [neuestes APK](https://github.com/aikitori/party-buttons/releases/latest/download/party-buttons.apk)
-aufs Host-Handy laden und öffnen (einmalig „Installation aus unbekannten Quellen“ erlauben).
+[![Build](https://github.com/aikitori/party-buttons/actions/workflows/android.yml/badge.svg)](https://github.com/aikitori/party-buttons/actions/workflows/android.yml)
+[![Release](https://img.shields.io/github/v/release/aikitori/party-buttons)](https://github.com/aikitori/party-buttons/releases/latest)
+![Android 8+](https://img.shields.io/badge/Android-8.0%2B-3ddc84)
 
-Stand: alle Meilensteine aus [PLAN.md](PLAN.md) umgesetzt.
+[**APK herunterladen**](https://github.com/aikitori/party-buttons/releases/latest/download/party-buttons.apk)
+
+<img src="docs/buzzer.png" width="220" alt="Buzzer freigegeben"> <img src="docs/gewonnen.png" width="220" alt="Am schnellsten gedrückt"> <img src="docs/antworten.png" width="220" alt="Antwort aufgelöst">
+
+</div>
+
+## Features
+
+- **Ein Handy ist der Host:** Die App startet ein Spiel im WLAN und zeigt einen QR-Code.
+- **Mitspielen im Browser:** Scannen, Namen eingeben, los. Android und iPhone, keine Installation.
+- **Buzzer:** Wer zuerst drückt, gewinnt. Der Host sieht Reihenfolge, Uhrzeit und Abstand in Millisekunden.
+- **Antworten:** 2 bis 8 Knöpfe (A–H). Antworten bleiben verdeckt, bis der Host auflöst.
+- **Punktestand:** automatisch für richtige Antworten, von Hand beim Buzzer.
+- **Fair:** Die Laufzeit jedes Geräts wird gemessen und ausgeglichen.
+- **Wiederverbinden:** Wer die Verbindung verliert oder neu lädt, ist wieder derselbe Spieler.
+- **Offline:** Nur dasselbe WLAN oder der Hotspot des Hosts, kein Internet, kein Konto.
+- Deutsch und Englisch, bis zu 20 Mitspielende.
+
+## Spielen
+
+1. App auf dem Host-Handy öffnen und **Spiel starten**.
+2. Die anderen scannen den QR-Code oder geben die angezeigte Adresse ein.
+3. **Buzzer** oder **Antworten** wählen und **Buzzer freigeben**.
+
+Niemand kommt rein? In der App unter **Niemand kommt rein?** stehen die häufigsten Ursachen (Gäste-WLAN, mobile Daten).
 
 ## Entwickeln
 
-| Teil | Ordner | Bauen / testen |
-|---|---|---|
-| Spiel-Logik (Kotlin/JVM, ohne Android) | `core/` | `./gradlew :core:test` |
-| Webserver (Ktor, JVM) | `server/` | `./gradlew :server:test` |
-| Host-App (Kotlin, Compose) | `app/` | `./gradlew :app:assembleDebug` (braucht das Android-SDK) |
-| Seite der Mitspielenden (TypeScript, Vite) | `web/` | `cd web && npm ci && npm run build`, landet in `app/src/main/assets/web/` |
+Kotlin (Jetpack Compose, Ktor) für den Host, TypeScript (Vite) für die Seite der Mitspielenden.
 
-Ohne Android-SDK überspringt Gradle das Modul `app`; `core`, `server` und die Tests laufen trotzdem.
+```
+core/     Spiel-Logik, reines Kotlin
+server/   Webserver und WebSocket (Ktor), läuft auch auf dem PC
+app/      Android-App
+web/      Seite der Mitspielenden, wird in die App gepackt
+```
 
-Ausprobieren ohne Handy: erst `cd web && npm run build`, dann `./gradlew :server:run`. Der Server druckt die
-Adresse (`http://localhost:8080/j/<Code>`) und jede Änderung von Spielern und Runde. Steuern per Eingabe:
-`o` Runde starten, `l` sperren, `f` Sperre nach dem ersten Druck an/aus, `m` Buzzer/Antworten,
-`n4` vier Knöpfe, `rB` auflösen mit B richtig, `r-` ohne richtige Antwort.
-Die CI (`.github/workflows/android.yml`) baut bei jedem Push die Seite, führt die Tests aus und legt ein
-Debug-APK als Artefakt ab.
+```sh
+cd web && npm ci && npm run build   # Seite bauen
+./gradlew :core:test :server:test   # Tests
+./gradlew :server:run               # ohne Handy im Browser ausprobieren
+./gradlew :app:assembleDebug        # APK (Android-SDK nötig)
+```
 
-Texte gibt es auf Englisch und Deutsch: `app/src/main/res/values*/strings.xml` und `web/src/i18n/*.json`.
-`TranslationsTest` prüft, dass in beiden Sprachen dieselben Schlüssel stehen.
-
-## Release
-
-Jeder Push auf `main` baut ein signiertes APK und legt es als GitHub-Release `v0.<Laufnummer>` ab. Alle APKs
-sind mit demselben Schlüssel signiert, deshalb lassen sich Updates über die installierte App spielen. Der
-Schlüssel liegt als Repo-Secret vor (`ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`,
-`ANDROID_KEY_PASSWORD`) und wurde einmalig mit `bash scripts/keystore-einrichten.sh` erzeugt. Das Original
-liegt außerhalb des Repos und muss sicher aufgehoben werden; geht es verloren, muss die App einmal neu
-installiert werden.
-
-Debug-APKs aus anderen Branches haben einen anderen Schlüssel: Vor dem ersten Release-APK die Debug-Version
-deinstallieren.
+Jeder Push auf `main` baut ein signiertes APK als Release. Plan und Ideen: [PLAN.md](PLAN.md).
