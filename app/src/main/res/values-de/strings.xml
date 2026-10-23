@@ -45,4 +45,11 @@
     <string name="qr_hint">Scannen zum Mitspielen</string>
     <string name="qr_close">Schließen</string>
     <string name="qr_enlarge">QR-Code groß zeigen</string>
+    <string name="merge_player">Übernehmen</string>
+    <string name="merge_title">Wer ist jetzt %1$s?</string>
+    <string name="merge_hint">Wähle, wer sich mit neuem Gerät oder Browser neu angemeldet hat. Er bekommt diesen Namen, die Farbe und den Platz.</string>
+    <string name="merge_none">Niemand Neues verbunden.</string>
+    <string name="tie">Gleichzeitig!</string>
+    <string name="latency">%1$d ms</string>
+    <string name="cancel">Abbrechen</string>
 </resources>

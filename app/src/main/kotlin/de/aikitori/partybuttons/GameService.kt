@@ -9,12 +9,16 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.media.AudioManager
+import android.media.ToneGenerator
 import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
+import de.aikitori.partybuttons.core.Mode
+import de.aikitori.partybuttons.core.Phase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -29,6 +33,7 @@ class GameService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var wakeLock: PowerManager.WakeLock? = null
     private var wifiLock: WifiManager.WifiLock? = null
+    private var tones: ToneGenerator? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -42,6 +47,7 @@ class GameService : Service() {
         wifiLock = (applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager)
             .createWifiLock(wifiLockMode(), "PartyButtons:game")
             .apply { acquire() }
+        tones = runCatching { ToneGenerator(AudioManager.STREAM_MUSIC, 90) }.getOrNull()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -52,9 +58,12 @@ class GameService : Service() {
         val type = if (Build.VERSION.SDK_INT >= 34) ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE else 0
         ServiceCompat.startForeground(this, NOTIFICATION_ID, notification(HostSession.state.value), type)
         scope.launch {
+            var last: HostState.Running? = null
             HostSession.state.collect { state ->
                 if (state is HostState.Running) {
                     getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification(state))
+                    playSounds(last, state)
+                    last = state
                 }
             }
         }
@@ -62,8 +71,23 @@ class GameService : Service() {
         return START_NOT_STICKY
     }
 
+    /** Ton beim ersten Druck einer Runde und wenn alle geantwortet haben; auch bei ausgeschaltetem Bildschirm. */
+    private fun playSounds(before: HostState.Running?, now: HostState.Running) {
+        val old = before?.round?.takeIf { it.number == now.round.number }
+        val round = now.round
+        if (round.mode == Mode.BUZZER && round.presses.isNotEmpty() && old?.presses.isNullOrEmpty()) {
+            tones?.startTone(ToneGenerator.TONE_PROP_ACK, 300)
+        }
+        val connected = now.players.count { it.connected }
+        val allAnswered = round.mode == Mode.CHOICE && round.phase == Phase.OPEN && connected > 0 &&
+            round.answers.size >= connected
+        val allAnsweredBefore = old != null && old.answers.size >= connected && old.phase == Phase.OPEN
+        if (allAnswered && !allAnsweredBefore) tones?.startTone(ToneGenerator.TONE_PROP_BEEP2, 250)
+    }
+
     override fun onDestroy() {
         scope.cancel()
+        tones?.release()
         wakeLock?.takeIf { it.isHeld }?.release()
         wifiLock?.takeIf { it.isHeld }?.release()
         super.onDestroy()

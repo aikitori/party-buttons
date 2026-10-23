@@ -40,10 +40,8 @@ class PartyServerTest {
         block(createClient { install(WebSockets) })
     }
 
-    private suspend fun DefaultClientWebSocketSession.receiveType(): String {
-        val frame = withTimeout(5.seconds) { incoming.receive() } as Frame.Text
-        return Json.parseToJsonElement(frame.readText()).jsonObject["type"]!!.jsonPrimitive.content
-    }
+    private suspend fun DefaultClientWebSocketSession.receiveType(): String =
+        Json.parseToJsonElement(receiveText()).jsonObject["type"]!!.jsonPrimitive.content
 
     private suspend fun DefaultClientWebSocketSession.sendJson(json: String) = send(Frame.Text(json))
 
@@ -69,8 +67,7 @@ class PartyServerTest {
 
         client.webSocket("/ws/abcde") { // Raumcode ohne Rücksicht auf Groß/klein
             sendJson("""{"type":"hello","token":"$token"}""")
-            val frame = withTimeout(5.seconds) { incoming.receive() } as Frame.Text
-            assertEquals(Protocol.encode(ServerMessage.Welcome(1, "Anna", offline.single().color)), frame.readText())
+            assertEquals(Protocol.encode(ServerMessage.Welcome(1, "Anna", offline.single().color)), receiveText())
             assertEquals("state", receiveType())
             assertTrue(withTimeout(5.seconds) { room.snapshot.first { it.players.single().connected } }.players.single().connected)
         }
@@ -122,8 +119,45 @@ class PartyServerTest {
         }
     }
 
-    private suspend fun DefaultClientWebSocketSession.receiveText(): String =
-        (withTimeout(5.seconds) { incoming.receive() } as Frame.Text).readText()
+    /** Nächste Nachricht außer Pings (die kommen alle 2 s dazwischen). */
+    private suspend fun DefaultClientWebSocketSession.receiveText(): String {
+        while (true) {
+            val text = (withTimeout(5.seconds) { incoming.receive() } as Frame.Text).readText()
+            if (!text.startsWith("""{"type":"ping"""")) return text
+        }
+    }
+
+    @Test
+    fun `Ping und Pong messen die Laufzeit`() = test { client ->
+        client.webSocket("/ws/ABCDE") {
+            sendJson("""{"type":"join","token":"$token","name":"Anna"}""")
+            while (true) {
+                val text = (withTimeout(5.seconds) { incoming.receive() } as Frame.Text).readText()
+                if (!text.startsWith("""{"type":"ping"""")) continue
+                val t = Json.parseToJsonElement(text).jsonObject["t"]!!.jsonPrimitive.content
+                sendJson("""{"type":"pong","t":$t}""")
+                break
+            }
+            val measured = withTimeout(5.seconds) { room.snapshot.first { it.players.singleOrNull()?.latencyMs != null } }
+            assertTrue(measured.players.single().latencyMs!! in 0..1000)
+        }
+    }
+
+    @Test
+    fun `Übernehmen über den Server`() = test { client ->
+        client.webSocket("/ws/ABCDE") {
+            sendJson("""{"type":"join","token":"$token","name":"Anna"}""")
+            assertEquals("welcome", receiveType())
+        }
+        withTimeout(5.seconds) { room.snapshot.first { it.players.size == 1 && !it.players.single().connected } }
+        client.webSocket("/ws/ABCDE") {
+            sendJson("""{"type":"join","token":"${"z".repeat(22)}","name":"Anna neu"}""")
+            assertEquals("welcome", receiveType())
+            assertEquals("state", receiveType())
+            room.mergePlayers(1, 2)
+            assertEquals(Protocol.encode(ServerMessage.Welcome(1, "Anna", room.snapshot.value.players.single().color)), receiveText())
+        }
+    }
 
     @Test
     fun `falscher Raumcode`() = test { client ->

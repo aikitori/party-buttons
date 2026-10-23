@@ -18,6 +18,15 @@ object Rules {
      */
     const val LATE_PRESS_WINDOW_MS = 500L
 
+    /**
+     * Höchstens so viel Laufzeit (eine Richtung) wird einem Druck gutgeschrieben. Begrenzt, damit niemand sich
+     * durch absichtlich langsame Antworten auf Pings einen Vorsprung verschafft.
+     */
+    const val MAX_LATENCY_COMPENSATION_MS = 100L
+
+    /** Liegen die zwei schnellsten Drücke näher beieinander, zeigt der Host „gleichzeitig“. */
+    const val TIE_MS = 20L
+
     /** Fester Port des Webservers, damit der Browserspeicher der Mitspielenden gleich bleibt. */
     const val DEFAULT_PORT = 8080
 

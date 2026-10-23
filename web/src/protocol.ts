@@ -4,7 +4,8 @@ export type ClientMessage =
   | { type: "hello"; token: string }
   | { type: "join"; token: string; name: string }
   | { type: "press"; round: number }
-  | { type: "answer"; round: number; option: number };
+  | { type: "answer"; round: number; option: number }
+  | { type: "pong"; t: number };
 
 export type Phase = "idle" | "open" | "locked";
 export type Mode = "buzzer" | "choice";
@@ -25,6 +26,7 @@ export type NameProblem = "empty" | "tooLong" | "taken";
 export type ServerMessage =
   | { type: "welcome"; id: number; name: string; color: string }
   | ({ type: "state" } & RoundState)
+  | { type: "ping"; t: number }
   | { type: "needName" }
   | { type: "nameRejected"; reason: NameProblem }
   | { type: "full" }

@@ -148,6 +148,10 @@ function press(event: Event): void {
 
 function handle(message: ServerMessage): void {
   switch (message.type) {
+    case "ping":
+      // sofort zurück: der Host misst daran die Laufzeit und gleicht sie beim Buzzer aus
+      connection.send({ type: "pong", t: message.t });
+      break;
     case "state":
       round = message;
       if (view.kind === "joined") renderRound();

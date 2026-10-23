@@ -12,8 +12,14 @@ sealed interface Effect {
     data class Close(val to: ConnectionId, val message: ServerMessage) : Effect
 }
 
-/** So sieht der Host einen Spieler. */
-data class PlayerView(val id: Int, val name: String, val color: String, val connected: Boolean)
+/** So sieht der Host einen Spieler. [latencyMs] ist die gemessene Hin- und Rücklaufzeit, solange verbunden. */
+data class PlayerView(
+    val id: Int,
+    val name: String,
+    val color: String,
+    val connected: Boolean,
+    val latencyMs: Long? = null,
+)
 
 /** Ein Druck in der Reihenfolge; [offsetMs] ist der Abstand zum ersten Druck. */
 data class PressView(val rank: Int, val playerId: Int, val name: String, val color: String, val offsetMs: Long)
@@ -44,6 +50,9 @@ data class RoundView(
     val answers: List<AnswerView>,
     val correct: Int?,
 ) {
+    /** Die zwei Schnellsten am Buzzer waren praktisch gleich schnell. */
+    val tie: Boolean get() = presses.size >= 2 && presses[1].offsetMs < Rules.TIE_MS
+
     /** Antworten pro Knopf (Index = Knopf). */
     val counts: List<Int> get() = List(options) { option -> answers.count { it.option == option } }
 }
@@ -56,8 +65,14 @@ data class RoundView(
  * Nicht threadsicher: Der Server ruft alles nacheinander auf.
  */
 class Game(val roomCode: String) {
-    private class Player(val id: Int, val token: String, val name: String, val color: String) {
+    private class Player(val id: Int, var token: String, val name: String, val color: String) {
         var connection: ConnectionId? = null
+
+        /** Gleitender Mittelwert der Laufzeit (hin und zurück), null bis zur ersten Messung. */
+        var rttMs: Double? = null
+
+        /** So viel früher hat der Spieler gedrückt, als der Druck ankam (halbe Laufzeit, begrenzt). */
+        fun compensationMs(): Long = ((rttMs ?: 0.0) / 2).toLong().coerceIn(0, Rules.MAX_LATENCY_COMPENSATION_MS)
     }
 
     private class Press(val player: Player, val atMs: Long)
@@ -87,7 +102,10 @@ class Game(val roomCode: String) {
     private var nextOptions = Rules.DEFAULT_ANSWER_OPTIONS
 
     fun players(): List<PlayerView> =
-        players.values.map { PlayerView(it.id, it.name, it.color, it.connection != null) }
+        players.values.map {
+            val connected = it.connection != null
+            PlayerView(it.id, it.name, it.color, connected, if (connected) it.rttMs?.toLong() else null)
+        }
 
     fun round(): RoundView {
         val first = presses.firstOrNull()?.atMs ?: 0
@@ -103,7 +121,7 @@ class Game(val roomCode: String) {
             presses = presses.mapIndexed { i, p -> PressView(i + 1, p.player.id, p.player.name, p.player.color, p.atMs - first) },
             answers = answers.map {
                 AnswerView(
-                    it.player.id, it.player.name, it.player.color, it.option, it.atMs - openedAtMs,
+                    it.player.id, it.player.name, it.player.color, it.option, (it.atMs - openedAtMs).coerceAtLeast(0),
                     correct = if (revealed && correct != null) it.option == correct else null,
                 )
             },
@@ -135,6 +153,44 @@ class Game(val roomCode: String) {
         val player = Player(nextId++, token, name, freeColor())
         players[token] = player
         return attach(conn, player)
+    }
+
+    /** Gemessene Laufzeit einer Verbindung (Ping bis Pong). */
+    fun reportRtt(conn: ConnectionId, rttMs: Long): List<Effect> {
+        val player = byConnection[conn] ?: return emptyList()
+        if (rttMs < 0) return emptyList()
+        // Ausreißer (kurzer WLAN-Hänger) sollen den Wert nicht auf einen Schlag verderben
+        player.rttMs = player.rttMs?.let { it * 0.7 + rttMs * 0.3 } ?: rttMs.toDouble()
+        return emptyList()
+    }
+
+    /**
+     * Host legt zwei Spieler zusammen: [newId] ist jemand, der sein Token verloren hat (anderes Gerät, privater
+     * Modus) und sich neu angemeldet hat; er wird wieder zu [oldId], mit Name, Farbe und Platz. [oldId] muss
+     * getrennt sein, sonst gäbe es ihn zweimal.
+     */
+    fun merge(oldId: Int, newId: Int): List<Effect> {
+        if (oldId == newId) return emptyList()
+        val old = players.values.firstOrNull { it.id == oldId } ?: return emptyList()
+        val new = players.values.firstOrNull { it.id == newId } ?: return emptyList()
+        if (old.connection != null) return emptyList()
+
+        players.remove(old.token)
+        players.remove(new.token)
+        old.token = new.token
+        players[old.token] = old
+
+        // was der Neue in dieser Runde getan hat, gilt für den Alten, falls der nichts getan hat
+        presses.replaceAll { if (it.player === new && presses.none { p -> p.player === old }) Press(old, it.atMs) else it }
+        presses.removeAll { it.player === new }
+        answers.replaceAll { if (it.player === new && answers.none { a -> a.player === old }) Answer(old, it.option, it.atMs) else it }
+        answers.removeAll { it.player === new }
+
+        val conn = new.connection ?: return broadcastState()
+        old.connection = conn
+        old.rttMs = new.rttMs
+        byConnection[conn] = old
+        return listOf(Effect.Send(conn, ServerMessage.Welcome(old.id, old.name, old.color))) + broadcastState()
     }
 
     /** Verbindung ist weg. Der Spieler bleibt, nur als getrennt. */
@@ -211,7 +267,7 @@ class Game(val roomCode: String) {
         // nach dem Auflösen zählt nichts mehr, auch nichts Verspätetes: das Ergebnis steht schon
         if (answeredRound != round || mode != Mode.CHOICE || phase != Phase.OPEN) return emptyList()
         if (option !in 0 until options || answers.any { it.player === player }) return emptyList()
-        answers += Answer(player, option, nowMs)
+        answers += Answer(player, option, nowMs - player.compensationMs())
         // nur der Spieler selbst erfährt davon; die anderen sehen nichts, damit niemand abschaut
         return listOf(Effect.Send(conn, stateFor(player)))
     }
@@ -226,7 +282,10 @@ class Game(val roomCode: String) {
             Phase.IDLE -> false
         }
         if (!accepted) return emptyList()
-        presses += Press(player, nowMs)
+        // Zeitpunkt des Drückens: Empfang minus Laufzeit; ein später angekommener Druck kann davor landen
+        val at = nowMs - player.compensationMs()
+        val index = presses.indexOfFirst { it.atMs > at }.takeIf { it >= 0 } ?: presses.size
+        presses.add(index, Press(player, at))
         if (phase == Phase.OPEN && lockOnFirst) lock(nowMs)
         return broadcastState()
     }
@@ -243,9 +302,9 @@ class Game(val roomCode: String) {
         }
         val mine = answers.firstOrNull { it.player === player }
         val revealed = phase == Phase.LOCKED
-        // Platz unter den Richtigen; answers liegen schon in Zeitreihenfolge
+        // Platz unter den Richtigen, nach Zeit
         val rank = if (revealed && mine != null && correct != null && mine.option == correct) {
-            answers.filter { it.option == correct }.indexOf(mine) + 1
+            answers.filter { it.option == correct }.sortedBy { it.atMs }.indexOf(mine) + 1
         } else {
             null
         }

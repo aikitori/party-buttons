@@ -48,6 +48,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
@@ -195,7 +196,7 @@ private fun ColumnScope.RunningGame(state: HostState.Running) {
         if (state.players.isEmpty()) {
             item { Text(stringResource(R.string.no_players), color = MaterialTheme.colorScheme.onSurfaceVariant) }
         }
-        items(state.players, key = { it.id }) { player -> PlayerRow(player, HostSession::removePlayer) }
+        items(state.players, key = { it.id }) { player -> PlayerRow(player, state.players) }
     }
 
     // unten: Steuerung
@@ -304,6 +305,9 @@ private fun BuzzerResult(round: RoundView) {
             Box(Modifier.size(40.dp).background(parseColor(first.color), CircleShape))
             Text(first.name, fontSize = 40.sp, fontWeight = FontWeight.Bold)
         }
+        if (round.tie) {
+            Text(stringResource(R.string.tie), color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold, fontSize = 22.sp)
+        }
         for (press in round.presses.drop(1)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(stringResource(R.string.rank, press.rank), Modifier.width(32.dp))
@@ -390,19 +394,46 @@ private fun QrImage(text: String, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun PlayerRow(player: PlayerView, onRemove: (Int) -> Unit) {
+private fun PlayerRow(player: PlayerView, everyone: List<PlayerView>) {
     val alpha = if (player.connected) 1f else 0.45f
+    var merging by remember { mutableStateOf(false) }
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Box(Modifier.size(16.dp).background(parseColor(player.color).copy(alpha = alpha), CircleShape))
         Column(Modifier.weight(1f)) {
             Text(player.name, color = MaterialTheme.colorScheme.onSurface.copy(alpha = alpha))
-            Text(
-                stringResource(if (player.connected) R.string.player_connected else R.string.player_disconnected),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            val status = stringResource(if (player.connected) R.string.player_connected else R.string.player_disconnected)
+            val latency = player.latencyMs?.let { " · " + stringResource(R.string.latency, it) } ?: ""
+            Text(status + latency, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        TextButton(onClick = { onRemove(player.id) }) { Text(stringResource(R.string.remove_player)) }
+        if (!player.connected) {
+            TextButton(onClick = { merging = true }) { Text(stringResource(R.string.merge_player)) }
+        }
+        TextButton(onClick = { HostSession.removePlayer(player.id) }) { Text(stringResource(R.string.remove_player)) }
+    }
+    if (merging) {
+        // nur Verbundene kommen in Frage: das sind die, die sich gerade neu angemeldet haben
+        val candidates = everyone.filter { it.connected && it.id != player.id }
+        AlertDialog(
+            onDismissRequest = { merging = false },
+            title = { Text(stringResource(R.string.merge_title, player.name)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(stringResource(R.string.merge_hint), style = MaterialTheme.typography.bodySmall)
+                    if (candidates.isEmpty()) Text(stringResource(R.string.merge_none))
+                    for (candidate in candidates) {
+                        TextButton(onClick = {
+                            HostSession.mergePlayers(player.id, candidate.id)
+                            merging = false
+                        }) {
+                            Box(Modifier.size(12.dp).background(parseColor(candidate.color), CircleShape))
+                            Text(candidate.name, Modifier.padding(start = 8.dp))
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = { TextButton(onClick = { merging = false }) { Text(stringResource(R.string.cancel)) } },
+        )
     }
 }
 

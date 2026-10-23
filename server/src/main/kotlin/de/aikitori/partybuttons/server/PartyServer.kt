@@ -37,6 +37,7 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.StateFlow
@@ -66,6 +67,9 @@ class PartyRoom(val roomCode: String = RoomCode.generate()) {
 
     suspend fun removePlayer(id: Int) = update { game.remove(id) }
 
+    /** „Übernehmen“: Spieler [newId] wird wieder zum getrennten Spieler [oldId]. */
+    suspend fun mergePlayers(oldId: Int, newId: Int) = update { game.merge(oldId, newId) }
+
     suspend fun openRound() = update { game.openRound(now()) }
 
     suspend fun setMode(mode: Mode) = update { game.setMode(mode) }
@@ -85,6 +89,13 @@ class PartyRoom(val roomCode: String = RoomCode.generate()) {
     internal suspend fun handle(session: DefaultWebSocketServerSession) {
         val conn = ConnectionId(nextConnection.getAndIncrement())
         sessions[conn] = session
+        // Laufzeit laufend messen, für den Ausgleich beim Buzzer
+        val pinger = session.launch {
+            while (true) {
+                send(conn, ServerMessage.Ping(now()))
+                delay(PING_INTERVAL)
+            }
+        }
         try {
             for (frame in session.incoming) {
                 if (frame !is Frame.Text) continue
@@ -96,6 +107,10 @@ class PartyRoom(val roomCode: String = RoomCode.generate()) {
                         val at = now()
                         update { game.press(conn, message.round, at) }
                     }
+                    is ClientMessage.Pong -> {
+                        val rtt = now() - message.t
+                        update { game.reportRtt(conn, rtt) }
+                    }
                     is ClientMessage.Answer -> {
                         val at = now()
                         update { game.answer(conn, message.round, message.option, at) }
@@ -104,6 +119,7 @@ class PartyRoom(val roomCode: String = RoomCode.generate()) {
                 }
             }
         } finally {
+            pinger.cancel()
             sessions.remove(conn)
             // auch wenn die Verbindung abgebrochen (gecancelt) wurde, muss das Spiel davon erfahren
             withContext(NonCancellable) { update { game.disconnected(conn) } }
@@ -132,6 +148,8 @@ class PartyRoom(val roomCode: String = RoomCode.generate()) {
         runCatching { sessions[to]?.send(Frame.Text(Protocol.encode(message))) }
     }
 }
+
+private val PING_INTERVAL = 2.seconds
 
 /** Routen: Seite unter /j/<Raumcode>, Dateien unter /assets/, WebSocket unter /ws/<Raumcode>. */
 fun Application.partyButtons(room: PartyRoom, files: StaticFiles) {

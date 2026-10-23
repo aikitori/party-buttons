@@ -29,6 +29,11 @@ sealed interface ClientMessage {
     @Serializable
     @SerialName("answer")
     data class Answer(val round: Int, val option: Int) : ClientMessage
+
+    /** Antwort auf [ServerMessage.Ping], sofort und mit demselben [t]. */
+    @Serializable
+    @SerialName("pong")
+    data class Pong(val t: Long) : ClientMessage
 }
 
 @Serializable
@@ -56,6 +61,11 @@ sealed interface ServerMessage {
         val correct: Int? = null,
         val counts: List<Int>? = null,
     ) : ServerMessage
+
+    /** Laufzeitmessung: Der Browser schickt [t] als [ClientMessage.Pong] zurück. */
+    @Serializable
+    @SerialName("ping")
+    data class Ping(val t: Long) : ServerMessage
 
     /** Token unbekannt, die Seite fragt nach dem Namen. */
     @Serializable

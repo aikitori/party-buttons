@@ -11,6 +11,7 @@ class ProtocolTest {
         assertEquals("""{"type":"welcome","id":3,"name":"Anna","color":"#e6194b"}""",
             Protocol.encode(ServerMessage.Welcome(3, "Anna", "#e6194b")))
         assertEquals("""{"type":"needName"}""", Protocol.encode(ServerMessage.NeedName))
+        assertEquals("""{"type":"ping","t":42}""", Protocol.encode(ServerMessage.Ping(42)))
         assertEquals("""{"type":"nameRejected","reason":"tooLong"}""",
             Protocol.encode(ServerMessage.NameRejected(NameProblem.TOO_LONG)))
         assertEquals(
@@ -27,6 +28,7 @@ class ProtocolTest {
     fun `Nachrichten vom Browser`() {
         assertEquals(ClientMessage.Hello("x".repeat(22)), Protocol.decodeClient("""{"type":"hello","token":"${"x".repeat(22)}"}"""))
         assertEquals(ClientMessage.Answer(4, 2), Protocol.decodeClient("""{"type":"answer","round":4,"option":2}"""))
+        assertEquals(ClientMessage.Pong(123456789L), Protocol.decodeClient("""{"type":"pong","t":123456789}"""))
         assertEquals(ClientMessage.Press(4), Protocol.decodeClient("""{"type":"press","round":4}"""))
         assertEquals(ClientMessage.Join("t", "Anna"), Protocol.decodeClient("""{"type":"join","token":"t","name":"Anna","extra":1}"""))
     }

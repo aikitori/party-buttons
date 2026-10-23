@@ -45,4 +45,11 @@
     <string name="qr_hint">Scan to join</string>
     <string name="qr_close">Close</string>
     <string name="qr_enlarge">Show QR code large</string>
+    <string name="merge_player">Take over</string>
+    <string name="merge_title">Who is %1$s now?</string>
+    <string name="merge_hint">Pick the player who joined again with a new device or browser. They get this name, color and place.</string>
+    <string name="merge_none">Nobody new is connected.</string>
+    <string name="tie">Tie!</string>
+    <string name="latency">%1$d ms</string>
+    <string name="cancel">Cancel</string>
 </resources>
