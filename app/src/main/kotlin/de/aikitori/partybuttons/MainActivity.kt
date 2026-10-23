@@ -1,6 +1,25 @@
 package de.aikitori.partybuttons
 
 import android.os.Bundle
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.window.Dialog
+import androidx.core.content.ContextCompat
+import de.aikitori.partybuttons.server.QrCode
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
@@ -52,7 +71,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.os.LocaleListCompat
-import androidx.lifecycle.viewmodel.compose.viewModel
 import de.aikitori.partybuttons.core.Phase
 import de.aikitori.partybuttons.core.PlayerView
 import de.aikitori.partybuttons.core.RoundView
@@ -80,8 +98,22 @@ private fun PartyButtonsTheme(content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun HostScreen(model: HostViewModel = viewModel()) {
-    val state by model.state.collectAsState()
+private fun HostScreen() {
+    val state by HostSession.state.collectAsState()
+    val context = LocalContext.current
+    // ohne Erlaubnis läuft das Spiel trotzdem, nur die Benachrichtigung fehlt
+    val askNotifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        HostSession.start(context)
+    }
+    val start = {
+        if (Build.VERSION.SDK_INT >= 33 &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            askNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            HostSession.start(context)
+        }
+    }
     Column(
         Modifier.safeDrawingPadding().padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -93,28 +125,59 @@ private fun HostScreen(model: HostViewModel = viewModel()) {
                 if (s is HostState.Failed) {
                     Text(stringResource(R.string.start_failed, s.message), color = MaterialTheme.colorScheme.error)
                 }
-                Button(onClick = model::start, Modifier.fillMaxWidth()) { Text(stringResource(R.string.start_game)) }
+                Button(onClick = start, Modifier.fillMaxWidth()) { Text(stringResource(R.string.start_game)) }
                 LanguagePicker()
             }
             HostState.Starting -> Text(stringResource(R.string.starting))
-            is HostState.Running -> RunningGame(s, model)
+            is HostState.Running -> RunningGame(s)
         }
     }
 }
 
 @Composable
-private fun ColumnScope.RunningGame(state: HostState.Running, model: HostViewModel) {
-    // oben: wie man reinkommt
-    Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(stringResource(R.string.room_code), style = MaterialTheme.typography.labelLarge)
-        Text(state.roomCode, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 28.sp)
+private fun ColumnScope.RunningGame(state: HostState.Running) {
+    val context = LocalContext.current
+    // Host-Bildschirm bleibt an, solange das Spiel läuft
+    val view = LocalView.current
+    DisposableEffect(view) {
+        view.keepScreenOn = true
+        onDispose { view.keepScreenOn = false }
     }
-    if (state.urls.isEmpty()) {
+    var largeQr by remember { mutableStateOf(false) }
+
+    // oben: wie man reinkommt
+    val url = state.urls.firstOrNull()
+    Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
+        if (url != null) {
+            QrImage(
+                url,
+                Modifier.size(132.dp).clickable(onClickLabel = stringResource(R.string.qr_enlarge)) { largeQr = true },
+            )
+        }
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(stringResource(R.string.room_code), style = MaterialTheme.typography.labelLarge)
+            Text(state.roomCode, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 28.sp)
+            if (url != null) Text(stringResource(R.string.qr_hint), style = MaterialTheme.typography.bodySmall)
+        }
+    }
+    if (url == null) {
         Text(stringResource(R.string.no_address), color = MaterialTheme.colorScheme.error)
     } else {
         Text(stringResource(R.string.join_hint), style = MaterialTheme.typography.bodySmall)
         SelectionContainer {
-            Column { state.urls.forEach { Text(it, fontFamily = FontFamily.Monospace) } }
+            Column { state.urls.forEach { Text(it, fontFamily = FontFamily.Monospace, fontSize = 13.sp) } }
+        }
+    }
+    if (largeQr && url != null) {
+        Dialog(onDismissRequest = { largeQr = false }) {
+            Surface(shape = MaterialTheme.shapes.large) {
+                Column(Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    QrImage(url, Modifier.fillMaxWidth().aspectRatio(1f))
+                    Text(state.roomCode, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 40.sp)
+                    Text(url, fontFamily = FontFamily.Monospace)
+                    TextButton(onClick = { largeQr = false }) { Text(stringResource(R.string.qr_close)) }
+                }
+            }
         }
     }
     HorizontalDivider()
@@ -132,37 +195,37 @@ private fun ColumnScope.RunningGame(state: HostState.Running, model: HostViewMod
         if (state.players.isEmpty()) {
             item { Text(stringResource(R.string.no_players), color = MaterialTheme.colorScheme.onSurfaceVariant) }
         }
-        items(state.players, key = { it.id }) { player -> PlayerRow(player, model::removePlayer) }
+        items(state.players, key = { it.id }) { player -> PlayerRow(player, HostSession::removePlayer) }
     }
 
     // unten: Steuerung
-    Controls(state, model)
-    TextButton(onClick = model::stop, Modifier.fillMaxWidth()) { Text(stringResource(R.string.stop_game)) }
+    Controls(state)
+    TextButton(onClick = { HostSession.stop(context) }, Modifier.fillMaxWidth()) { Text(stringResource(R.string.stop_game)) }
 }
 
 @Composable
-private fun Controls(state: HostState.Running, model: HostViewModel) {
+private fun Controls(state: HostState.Running) {
     val round = state.round
     // Einstellungen für die nächste Runde
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         FilterChip(
             selected = round.nextMode == Mode.BUZZER,
-            onClick = { model.setMode(Mode.BUZZER) },
+            onClick = { HostSession.setMode(Mode.BUZZER) },
             label = { Text(stringResource(R.string.mode_buzzer)) },
         )
         FilterChip(
             selected = round.nextMode == Mode.CHOICE,
-            onClick = { model.setMode(Mode.CHOICE) },
+            onClick = { HostSession.setMode(Mode.CHOICE) },
             label = { Text(stringResource(R.string.mode_choice)) },
         )
         if (round.nextMode == Mode.CHOICE) {
             Spacer(Modifier.weight(1f))
-            OptionsStepper(round.nextOptions, model::setOptions)
+            OptionsStepper(round.nextOptions, HostSession::setOptions)
         }
     }
     if (round.nextMode == Mode.BUZZER) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Switch(checked = round.lockOnFirst, onCheckedChange = model::setLockOnFirst)
+            Switch(checked = round.lockOnFirst, onCheckedChange = HostSession::setLockOnFirst)
             Text(stringResource(R.string.lock_on_first), Modifier.padding(start = 12.dp))
         }
     }
@@ -173,21 +236,21 @@ private fun Controls(state: HostState.Running, model: HostViewModel) {
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             for (option in 0 until round.options) {
                 FilledTonalButton(
-                    onClick = { model.reveal(option) },
+                    onClick = { HostSession.reveal(option) },
                     Modifier.weight(1f),
                     contentPadding = PaddingValues(0.dp),
                 ) { Text(Rules.optionLabel(option), fontWeight = FontWeight.Bold) }
             }
         }
-        TextButton(onClick = { model.reveal(null) }) { Text(stringResource(R.string.reveal_none)) }
+        TextButton(onClick = { HostSession.reveal(null) }) { Text(stringResource(R.string.reveal_none)) }
     }
 
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Button(onClick = model::openRound, Modifier.weight(1f)) {
+        Button(onClick = HostSession::openRound, Modifier.weight(1f)) {
             Text(stringResource(if (round.number == 0) R.string.open_round else R.string.next_round))
         }
         if (round.phase == Phase.OPEN && round.mode == Mode.BUZZER) {
-            FilledTonalButton(onClick = model::lockRound, Modifier.weight(1f)) { Text(stringResource(R.string.lock_round)) }
+            FilledTonalButton(onClick = HostSession::lockRound, Modifier.weight(1f)) { Text(stringResource(R.string.lock_round)) }
         }
     }
 }
@@ -308,6 +371,23 @@ private fun ChoiceResult(round: RoundView, connectedPlayers: Int) {
 }
 
 private val CorrectGreen = Color(0xFF2E8B3A)
+
+/** QR-Code, immer schwarz auf weiß (Kameras kommen mit hell auf dunkel schlecht zurecht). */
+@Composable
+private fun QrImage(text: String, modifier: Modifier = Modifier) {
+    val qr = remember(text) { QrCode.encode(text) }
+    Canvas(modifier.background(Color.White)) {
+        val cell = size.minDimension / qr.size
+        for (y in 0 until qr.size) {
+            for (x in 0 until qr.size) {
+                if (qr[x, y]) {
+                    // eine Spur größer, damit zwischen Nachbarn keine Haarlinien entstehen
+                    drawRect(Color.Black, Offset(x * cell, y * cell), Size(cell + 0.5f, cell + 0.5f))
+                }
+            }
+        }
+    }
+}
 
 @Composable
 private fun PlayerRow(player: PlayerView, onRemove: (Int) -> Unit) {

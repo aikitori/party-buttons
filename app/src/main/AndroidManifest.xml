@@ -3,6 +3,11 @@
 
     <!-- Webserver im WLAN für die Mitspielenden -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Spiel läuft als Vordergrund-Dienst weiter, auch bei ausgeschaltetem Bildschirm -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <application
         android:label="@string/app_name"
@@ -13,12 +18,22 @@
 
         <activity
             android:name=".MainActivity"
-            android:exported="true">
+            android:exported="true"
+            android:launchMode="singleTop">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <service
+            android:name=".GameService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Local game server for players in the same Wi-Fi network" />
+        </service>
 
         <!-- Sprachwahl der App vor Android 13 speichern (AppCompatDelegate.setApplicationLocales) -->
         <service

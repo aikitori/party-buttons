@@ -1,22 +1,25 @@
 package de.aikitori.partybuttons
 
-import android.app.Application
+import android.content.Context
+import android.content.Intent
 import android.content.res.AssetManager
-import androidx.lifecycle.AndroidViewModel
-import androidx.lifecycle.viewModelScope
+import androidx.core.content.ContextCompat
 import de.aikitori.partybuttons.core.Mode
 import de.aikitori.partybuttons.core.PlayerView
 import de.aikitori.partybuttons.core.RoundView
+import de.aikitori.partybuttons.server.LanAddresses
 import de.aikitori.partybuttons.server.PartyRoom
 import de.aikitori.partybuttons.server.PartyServer
 import de.aikitori.partybuttons.server.StaticFiles
-import java.net.Inet4Address
-import java.net.NetworkInterface
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -27,7 +30,7 @@ sealed interface HostState {
 
     data class Running(
         val roomCode: String,
-        /** Adressen, unter denen die Mitspielenden die Seite öffnen. Leer ohne WLAN. */
+        /** Adressen, unter denen die Mitspielenden die Seite öffnen, die beste zuerst. Leer ohne WLAN. */
         val urls: List<String>,
         val players: List<PlayerView>,
         val round: RoundView,
@@ -35,45 +38,55 @@ sealed interface HostState {
 }
 
 /**
- * Hält den Webserver, solange die App offen ist (übersteht Drehen und Sprachwechsel).
- * Weiterlaufen bei ausgeschaltetem Bildschirm kommt mit dem Vordergrund-Dienst in M3.
+ * Das laufende Spiel, unabhängig vom Bildschirm: Die Activity kann zugehen, der [GameService] hält die App am
+ * Leben, bis der Host das Spiel beendet.
  */
-class HostViewModel(application: Application) : AndroidViewModel(application) {
+object HostSession {
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val _state = MutableStateFlow<HostState>(HostState.Idle)
     val state: StateFlow<HostState> = _state.asStateFlow()
 
     private var server: PartyServer? = null
     private var job: Job? = null
 
-    fun start() {
+    fun start(context: Context) {
         if (server != null || _state.value == HostState.Starting) return
+        val app = context.applicationContext
         _state.value = HostState.Starting
-        job = viewModelScope.launch {
+        job = scope.launch {
             val started = runCatching {
-                withContext(Dispatchers.IO) {
-                    PartyServer(AssetStaticFiles(getApplication<Application>().assets)).also { it.start() }
-                }
+                withContext(Dispatchers.IO) { PartyServer(AssetStaticFiles(app.assets)).also { it.start() } }
             }
             started.onFailure { _state.value = HostState.Failed(it.message ?: it.javaClass.simpleName) }
             val running = started.getOrNull() ?: return@launch
             server = running
-            val urls = lanAddresses().map { "http://$it:${running.port}/j/${running.room.roomCode}" }
-            running.room.snapshot.collect { snapshot ->
-                _state.value = HostState.Running(running.room.roomCode, urls, snapshot.players, snapshot.round)
+            ContextCompat.startForegroundService(app, Intent(app, GameService::class.java))
+
+            // Adressen ändern sich, wenn WLAN oder Hotspot an- oder ausgehen; deshalb regelmäßig neu ermitteln
+            val addresses = MutableStateFlow(LanAddresses.current())
+            launch {
+                while (true) {
+                    delay(3_000)
+                    addresses.value = withContext(Dispatchers.IO) { LanAddresses.current() }
+                }
             }
+            val code = running.room.roomCode
+            combine(running.room.snapshot, addresses) { snapshot, ips ->
+                HostState.Running(code, ips.map { "http://$it:${running.port}/j/$code" }, snapshot.players, snapshot.round)
+            }.collect { _state.value = it }
         }
     }
 
-    fun stop() {
+    fun stop(context: Context) {
         val running = server ?: return
         server = null
         job?.cancel()
         job = null
         _state.value = HostState.Idle
-        viewModelScope.launch(Dispatchers.IO) { running.stop() }
+        val app = context.applicationContext
+        app.stopService(Intent(app, GameService::class.java))
+        scope.launch(Dispatchers.IO) { running.stop() }
     }
-
-    fun removePlayer(id: Int) = withRoom { it.removePlayer(id) }
 
     fun openRound() = withRoom { it.openRound() }
 
@@ -87,15 +100,11 @@ class HostViewModel(application: Application) : AndroidViewModel(application) {
 
     fun reveal(correct: Int?) = withRoom { it.reveal(correct) }
 
+    fun removePlayer(id: Int) = withRoom { it.removePlayer(id) }
+
     private fun withRoom(action: suspend (PartyRoom) -> Unit) {
         val running = server ?: return
-        viewModelScope.launch { action(running.room) }
-    }
-
-    override fun onCleared() {
-        // viewModelScope ist hier schon beendet
-        server?.let { Thread { it.stop() }.start() }
-        server = null
+        scope.launch { action(running.room) }
     }
 }
 
@@ -106,15 +115,3 @@ private class AssetStaticFiles(private val assets: AssetManager) : StaticFiles {
         return runCatching { assets.open("web/$path").use { it.readBytes() } }.getOrNull()
     }
 }
-
-/** IPv4-Adressen im lokalen Netz (WLAN, Hotspot). Genauere Erkennung kommt in M3. */
-private fun lanAddresses(): List<String> =
-    runCatching {
-        NetworkInterface.getNetworkInterfaces().toList()
-            .filter { it.isUp && !it.isLoopback }
-            .flatMap { it.inetAddresses.toList() }
-            .filterIsInstance<Inet4Address>()
-            .filter { it.isSiteLocalAddress }
-            .mapNotNull { it.hostAddress }
-            .distinct()
-    }.getOrDefault(emptyList())

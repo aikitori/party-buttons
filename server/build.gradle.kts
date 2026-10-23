@@ -18,6 +18,7 @@ dependencies {
     api(libs.kotlinx.coroutines.core)
     implementation(libs.ktor.server.cio)
     implementation(libs.ktor.server.websockets)
+    implementation(libs.zxing.core)
 
     testImplementation(libs.ktor.server.test.host)
     testImplementation(libs.ktor.client.websockets)

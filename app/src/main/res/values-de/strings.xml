@@ -39,4 +39,10 @@
     <string name="correct_title">Richtig, die Schnellsten zuerst:</string>
     <string name="nobody_correct">Niemand lag richtig.</string>
     <string name="seconds">%1$.1f s</string>
+    <string name="notification_channel">Laufendes Spiel</string>
+    <string name="notification_title">Spiel läuft · Code %1$s</string>
+    <string name="notification_text">%1$d Mitspielende verbunden</string>
+    <string name="qr_hint">Scannen zum Mitspielen</string>
+    <string name="qr_close">Schließen</string>
+    <string name="qr_enlarge">QR-Code groß zeigen</string>
 </resources>
