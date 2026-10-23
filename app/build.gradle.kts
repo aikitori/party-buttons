@@ -30,6 +30,13 @@ android {
     buildFeatures {
         compose = true
     }
+
+    packaging {
+        resources {
+            // doppelte Lizenz-/Index-Dateien aus den Ktor-Abhängigkeiten
+            excludes += setOf("/META-INF/{AL2.0,LGPL2.1}", "/META-INF/INDEX.LIST", "/META-INF/io.netty.versions.properties")
+        }
+    }
 }
 
 kotlin {
@@ -37,11 +44,12 @@ kotlin {
 }
 
 dependencies {
-    implementation(project(":core"))
+    implementation(project(":server"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)
     implementation(libs.compose.material3)

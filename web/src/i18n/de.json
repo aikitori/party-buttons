@@ -1,5 +1,20 @@
 {
   "title": "Party Buttons",
-  "placeholder": "Noch nichts zu spielen. Das Spiel kommt in den nächsten Schritten.",
+  "connecting": "Verbinde …",
+  "reconnecting": "Verbindung weg, verbinde neu …",
+  "nameLabel": "Dein Name",
+  "joinButton": "Mitspielen",
+  "nameEmpty": "Bitte gib einen Namen ein.",
+  "nameTooLong": "Der Name ist zu lang (höchstens 20 Zeichen).",
+  "nameTaken": "Den Namen hat schon jemand.",
+  "joinedAs": "Du spielst mit als",
+  "waiting": "Warte, bis der Host eine Runde startet.",
+  "full": "Das Spiel ist voll (20 Mitspielende).",
+  "wrongRoom": "Dieses Spiel gibt es nicht (mehr). Scanne den QR-Code am Host neu.",
+  "replaced": "Du hast das Spiel in einem anderen Tab oder Browser geöffnet.",
+  "replacedButton": "Hier weiterspielen",
+  "removed": "Der Host hat dich aus dem Spiel genommen.",
+  "rejoinButton": "Neu beitreten",
+  "retryButton": "Nochmal versuchen",
   "buzzer": "Buzz!"
 }

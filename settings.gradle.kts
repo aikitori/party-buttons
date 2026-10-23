@@ -17,6 +17,7 @@ dependencyResolutionManagement {
 rootProject.name = "party-buttons"
 
 include(":core")
+include(":server")
 
 // Die App braucht das Android-SDK. Ohne SDK (z. B. in claude-box) lassen sich core und die Tests trotzdem bauen.
 val hasAndroidSdk = System.getenv("ANDROID_HOME") != null ||

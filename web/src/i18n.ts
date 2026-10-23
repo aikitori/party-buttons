@@ -3,7 +3,7 @@ import en from "./i18n/en.json";
 
 // Jedes Gerät wählt seine Sprache selbst; der Host schickt nur Zustände, keine fertigen Texte.
 export type Lang = "de" | "en";
-type Key = keyof typeof en;
+export type Key = keyof typeof en;
 
 const dictionaries: Record<Lang, Record<Key, string>> = { de, en };
 const STORAGE_KEY = "pb.lang";
@@ -23,6 +23,12 @@ function fromBrowser(): Lang {
 }
 
 let current: Lang = stored() ?? fromBrowser();
+const listeners: Array<() => void> = [];
+
+/** Wird nach jedem Sprachwechsel aufgerufen, für Texte, die nicht per data-i18n gesetzt sind. */
+export function onLangChange(listener: () => void): void {
+  listeners.push(listener);
+}
 
 export function lang(): Lang {
   return current;
@@ -40,6 +46,7 @@ export function setLang(next: Lang): void {
     // nicht gespeichert, gilt nur bis zum Neuladen
   }
   apply();
+  listeners.forEach((listener) => listener());
 }
 
 /** Alle Elemente mit data-i18n neu beschriften. */

@@ -5,6 +5,9 @@ object Rules {
     /** So viele Mitspielende muss ein Spiel mindestens tragen. */
     const val MAX_PLAYERS = 20
 
+    /** Längster erlaubter Spielername (in Zeichen). */
+    const val MAX_NAME_LENGTH = 20
+
     /** Anzahl der Knöpfe in der Rundenart „Antworten“. */
     val ANSWER_OPTIONS = 2..8
     const val DEFAULT_ANSWER_OPTIONS = 4
